@@ -219,3 +219,5 @@
 - 数据安全：修改运行库前已备份到 `backups/live_ops_20260722T091642Z.sqlite3`；测试未向真实飞书群发送消息，也未修改真实业务记录。
 - 部署边界：公网 API 仍经 Cloudflare Quick Tunnel 连接本机，适合当前验收和共享试用，但不具备 24×7 SLA；长期运行应迁移到固定隧道或云主机。
 - 最终生产验收：`make.cmd verify-production` 退出码 0；7 个服务、33 张表、迁移、强密钥、生产无夹具写入和 Docker 构建路径均有效。本机无 Docker CLI，容器部分为等价 YAML、路径和安全静态校验。
+- Netlify 发布后浏览器验收：根链接 HTTP 200；无 Cookie 会话显示飞书登录提示和按钮，页面无 JavaScript 异常。控制台仅记录未登录探测 `/auth/me` 的预期 HTTP 401。
+- 公网权限验收：通过 Netlify 同源代理模拟 `live_manager` 会话，`/auth/me` 与筛选接口 HTTP 200，角色范围和筛选均包含 3 个直播间；`can_manage_permissions=false`，权限总览 HTTP 403。

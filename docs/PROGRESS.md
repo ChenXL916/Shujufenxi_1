@@ -356,3 +356,5 @@
 - [x] 本地生产会话 RBAC 冒烟通过：`live_manager` 可读取 3 个直播间与筛选数据，不能管理权限，访问权限总览返回 HTTP 403。
 - [x] 公网 `/ready` 返回 HTTP 200，模式为 `feishu`，机器人、数据库与依赖就绪。
 - [x] `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥、生产无夹具写入和 Docker 构建路径通过；本机无 Docker CLI，容器部分完成等价静态验收。
+- [x] Netlify 已部署提交 `3ad3d1b` 的前端产物；无 Cookie 浏览器访问根链接可见“请先使用飞书登录”和“使用飞书登录”按钮，页面无 JavaScript 异常。
+- [x] 公网代理 RBAC 复验通过：`live_manager` 会话读取 3 个直播间，`can_manage_permissions=false`，权限总览返回 HTTP 403。
