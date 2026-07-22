@@ -111,6 +111,10 @@ def test_password_login_issues_session_and_uses_generic_failures(
             json={"username": " WEB.VIEWER ", "password": "A-secure-password-2026"},
         )
         me = client.get("/auth/me")
+        csrf_cookie = client.cookies.get("live_ops_csrf")
+        assert csrf_cookie is not None
+        logout = client.post("/auth/logout", headers={"X-CSRF-Token": csrf_cookie})
+        me_after_logout = client.get("/auth/me")
         with Session(engine) as session:
             audit = session.scalar(
                 select(PermissionAuditLog).where(
@@ -136,9 +140,15 @@ def test_password_login_issues_session_and_uses_generic_failures(
     assert success.status_code == 200
     assert success.json() == {"authenticated": True, "redirect_url": "/overview"}
     assert "HttpOnly" in success.headers["set-cookie"]
+    assert "Max-Age=2592000" in success.headers["set-cookie"]
     assert me.status_code == 200
+    assert "Max-Age=2592000" in me.headers["set-cookie"]
+    assert "HttpOnly" in me.headers["set-cookie"]
     assert me.json()["auth_mode"] == "password"
     assert me.json()["name"] == "网页查看账号"
+    assert logout.status_code == 204
+    assert "Max-Age=0" in logout.headers["set-cookie"]
+    assert me_after_logout.status_code == 401
     assert last_login_at is not None
     assert audit is not None
     assert audit.after_value == {"auth_mode": "password"}
@@ -195,6 +205,21 @@ def test_signed_session_and_oauth_state_reject_tampering() -> None:
     assert codec.loads_state(state) == "expected-state"
     assert codec.loads(f"{session}x") is None
     assert codec.loads_state(f"{state}x") is None
+
+
+def test_session_duration_is_configurable_and_bounded() -> None:
+    codec = SessionCodec(
+        Settings(
+            app_env="test",
+            jwt_secret="test-session-secret",  # noqa: S106
+            session_max_age_days=45,
+        )
+    )
+    assert codec.max_age_seconds == 45 * 24 * 60 * 60
+    with pytest.raises(ValueError):
+        Settings(app_env="test", session_max_age_days=0)
+    with pytest.raises(ValueError):
+        Settings(app_env="test", session_max_age_days=366)
 
 
 @pytest.mark.asyncio

@@ -373,3 +373,17 @@
 - [x] 提交 `f13e026` 已推送到 `ChenXL916/Shujufenxi_1` 的 `main`，Netlify 自动发布的新入口包已包含“登录并查看数据”。
 - [x] 公网临时随机密码冒烟通过：`live_manager_test` 以 `auth_mode=password` 登录，`/auth/me` 返回 `live_manager` 与 3 个直播间，筛选返回 3 个直播间，权限管理接口 HTTP 403；退出 HTTP 204，退出后 `/auth/me` HTTP 401。
 - [x] 冒烟结束后已清除临时密码，恢复原最近登录时间并删除临时登录审计；复查 `PASSWORD_CLEARED=True`、`SMOKE_AUDIT_ROWS=0`，未留下可登录测试凭据。
+
+## 阶段 25：长期免密进入与滚动会话
+
+- [x] 将原固定 8 小时会话改为 `SESSION_MAX_AGE_DAYS` 可配置持久会话，默认 30 天，配置范围限制为 1–365 天。
+- [x] `/auth/me` 在会话有效且账号仍启用时重新签发签名会话与 CSRF Cookie；应用启动会调用该接口，因此同一浏览器关闭后再次打开链接可直接进入，并滚动延长有效期。
+- [x] 浏览器不保存密码；会话 Cookie 保持 `HttpOnly`，生产继续启用 `Secure` 与 `SameSite=Lax`。角色、权限和直播间范围仍在每次请求时从数据库重建。
+- [x] 主动退出按根路径删除会话和 CSRF Cookie；退出后 `/auth/me` 返回 HTTP 401。停用账号同样无法继续使用原 Cookie。
+- [x] 登录页已明确提示“本设备保持登录”和主动退出后的行为；Compose 生产配置与 `.env.example` 已加入 30 天默认值。
+- [x] 第一轮定向验证：认证/RBAC 后端 14 项通过，前端 `App.test.tsx` 5 项通过；Ruff 格式与检查通过。
+- [x] 完整 `make.cmd check` 通过：183 个后端测试、17 个前端文件/63 个单测、22 个生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 86.36%。
+- [x] `make.cmd verify-production` 通过：7 个服务、33 张表、迁移、强密钥、生产无 fixture 写入及 Docker 构建路径有效；本机无 Docker CLI，容器运行态仍为等价静态验收。
+- [x] 部署前在线备份生产 SQLite 到 `backups/live_ops_20260722T103410Z.sqlite3`，随后重启本机生产 API；本地 `/health`、`/ready` 和公网 `/ready` 均为 HTTP 200。
+- [x] 公网临时随机密码冒烟通过：登录 Cookie 为 30 天且具备 `HttpOnly`、`Secure`、`SameSite=Lax`、根路径属性；`/auth/me` 滚动续期、复制 Cookie 模拟关闭后重开、`live_manager` 三房间范围及退出失效均通过。
+- [x] 冒烟完成后恢复隔离测试账号原密码哈希、最近登录时间与更新时间，并删除本次临时登录审计；复查 `PASSWORD_RESTORED=True`、`SMOKE_AUDIT_RESTORED=True`。

@@ -9,6 +9,7 @@ x-production-environment: &production-environment
   FEISHU_REDIRECT_URI: ${FEISHU_REDIRECT_URI:?FEISHU_REDIRECT_URI is required}
   JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
   FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?FIELD_ENCRYPTION_KEY is required}
+  SESSION_MAX_AGE_DAYS: ${SESSION_MAX_AGE_DAYS:-30}
 
 services:
   postgres:

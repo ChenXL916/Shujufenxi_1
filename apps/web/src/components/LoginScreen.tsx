@@ -82,7 +82,7 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated: () => Promis
             使用飞书登录
           </Button>
           <Typography.Paragraph type="secondary" className="login-help">
-            登录后只能看到管理员分配给你的功能和直播间；没有账号请联系系统管理员创建。
+            登录后本设备将保持登录，之后打开链接可直接进入；主动退出后需要重新输入密码。你只能看到管理员分配的功能和直播间。
           </Typography.Paragraph>
         </Space>
       </Card>

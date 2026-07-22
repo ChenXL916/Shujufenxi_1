@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     field_encryption_key: str = ""
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    session_max_age_days: int = Field(default=30, ge=1, le=365)
 
     feishu_app_id: str = ""
     feishu_app_secret: str = ""

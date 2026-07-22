@@ -236,3 +236,16 @@
 - 生产发布：提交 `f13e026` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 生产站点 `/`、`/overview` 与 `/ready` 均为 HTTP 200，线上主入口包与本地生产构建一致并包含网页账号登录界面。
 - 公网账号链路：对隔离的 `live_manager_test` 临时设置随机密码后，`POST /auth/password/login` HTTP 200，`/auth/me` 返回 `auth_mode=password`、`role=live_manager` 和 3 个直播间；筛选接口返回 3 个直播间，权限管理接口 HTTP 403；退出 HTTP 204，退出后会话 HTTP 401。
 - 公网测试清理：临时密码只存在于测试进程内，测试结束后已把 `password_hash`、最近登录时间和临时登录审计恢复/清理；复查为 `PASSWORD_CLEARED=True`、`SMOKE_AUDIT_ROWS=0`。没有在代码、文档、Git 或日志中记录该随机密码。
+
+## 2026-07-22 阶段 25：长期免密进入与滚动会话
+
+- 功能口径：首次登录后签发默认 30 天的持久化签名 Cookie；应用启动调用 `/auth/me` 时在账号仍有效的前提下滚动续期。同一浏览器关闭后重新打开链接可直接进入，浏览器不保存密码。
+- 安全口径：会话 Cookie 保持 `HttpOnly`，生产保持 `Secure`、`SameSite=Lax`、`Path=/`；CSRF Cookie 同期滚动。账号停用、角色与直播间范围变化仍由服务端逐请求校验，主动退出删除两枚 Cookie。
+- 配置验证：`SESSION_MAX_AGE_DAYS` 默认 30，Pydantic 强制范围 1–365；`.env.example` 与生产 Compose 均已声明。定向测试覆盖默认 Max-Age、45 天自定义值、上下界拒绝、滚动续期和退出后 HTTP 401。
+- 定向测试：`test_auth_permissions.py` 与 `test_rbac_data_scope.py` 共 14 项通过；前端 `App.test.tsx` 5 项通过；Ruff 格式与检查通过。
+- 完整门禁：`make.cmd check` 通过。183 个后端测试全部通过，领域与服务覆盖率 86.36%；17 个前端测试文件/63 个单元测试通过；Vite 生产构建生成 22 个 JS Chunk，全部不超过 650 KiB；6 个 Chromium E2E 通过。
+- 生产验证：`make.cmd verify-production` 通过，验证 7 个服务、33 张表、迁移、生产强密钥、关闭开发旁路、无 fixture 写入和 Docker 构建路径。本机无 Docker CLI，因此容器运行态继续采用 YAML、路径与安全静态等价验收。
+- 数据保护：部署前生成 `backups/live_ops_20260722T103410Z.sqlite3`；测试未调用真实飞书群推送，也未修改直播经营事实。
+- 运行验证：生产 API 重启后，本地 `/health`、`/ready` 与公网 `/ready` 均为 HTTP 200，`ready.mode=feishu`。
+- 公网会话冒烟：隔离账号临时随机密码登录 HTTP 200；登录与 `/auth/me` 响应均返回 `Max-Age=2592000`，Cookie 安全属性完整；复制 Cookie 到新客户端模拟浏览器重开后 `/auth/me` HTTP 200，角色为 `live_manager`、范围为 3 个直播间；退出 HTTP 204，退出后 `/auth/me` HTTP 401。
+- 清理复核：冒烟结束后恢复隔离账号原密码哈希、最近登录时间与更新时间，并清理本次新增登录审计；复查 `PASSWORD_RESTORED=True`、`SMOKE_AUDIT_RESTORED=True`，没有记录临时密码或 Cookie 内容。

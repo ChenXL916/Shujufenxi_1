@@ -17,7 +17,7 @@ from app.auth.login_limiter import login_attempt_limiter
 from app.auth.oauth import FeishuOAuthClient
 from app.auth.passwords import hash_password, verify_password
 from app.auth.session import SessionCodec
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.core.runtime_settings import load_runtime_settings
 from app.db.base import utc_now
 from app.db.session import get_db
@@ -57,24 +57,25 @@ def _set_session_cookies(
     auth_mode: str,
 ) -> None:
     csrf = secrets.token_urlsafe(32)
-    session_cookie = SessionCodec(settings).dumps(
-        {"user_id": str(user_id), "csrf": csrf, "auth_mode": auth_mode}
-    )
+    codec = SessionCodec(settings)
+    session_cookie = codec.dumps({"user_id": str(user_id), "csrf": csrf, "auth_mode": auth_mode})
     response.set_cookie(
         "live_ops_session",
         session_cookie,
-        max_age=SessionCodec.max_age_seconds,
+        max_age=codec.max_age_seconds,
         httponly=True,
         secure=settings.app_env == "production",
         samesite="lax",
+        path="/",
     )
     response.set_cookie(
         "live_ops_csrf",
         csrf,
-        max_age=SessionCodec.max_age_seconds,
+        max_age=codec.max_age_seconds,
         httponly=False,
         secure=settings.app_env == "production",
         samesite="lax",
+        path="/",
     )
 
 
@@ -299,13 +300,18 @@ async def sync_feishu_now(access: SyncAccess) -> dict[str, Any]:
 @router.post("/logout")
 def logout(_: Annotated[None, Depends(require_csrf)]) -> Response:
     response = Response(status_code=204)
-    response.delete_cookie("live_ops_session")
-    response.delete_cookie("live_ops_csrf")
+    response.delete_cookie("live_ops_session", path="/")
+    response.delete_cookie("live_ops_csrf", path="/")
     return response
 
 
 @router.get("/me")
-def current_user(access: Access, db: DbSession) -> dict[str, object]:
+def current_user(
+    response: Response,
+    access: Access,
+    db: DbSession,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
     room_names = (
         ["全部直播间"]
         if access.room_ids is None
@@ -358,6 +364,16 @@ def current_user(access: Access, db: DbSession) -> dict[str, object]:
     user = db.get(User, access.user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="用户不存在")
+    # App startup always calls /auth/me. Reissuing the signed cookies here gives
+    # trusted devices a rolling remember-login window without storing secrets in
+    # the browser. Disabled accounts and permission changes still take effect on
+    # every request because AccessScope is rebuilt from the database.
+    _set_session_cookies(
+        response,
+        settings=settings,
+        user_id=user.id,
+        auth_mode=access.auth_mode,
+    )
     return {
         "id": str(user.id),
         "name": user.name,

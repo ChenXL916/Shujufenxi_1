@@ -9,12 +9,11 @@ from app.core.config import Settings
 
 
 class SessionCodec:
-    max_age_seconds = 8 * 60 * 60
-
     def __init__(self, settings: Settings) -> None:
         secret = settings.jwt_secret
         if not secret and settings.app_env != "production":
             secret = hashlib.sha256(f"{settings.app_name}:development".encode()).hexdigest()
+        self.max_age_seconds = settings.session_max_age_days * 24 * 60 * 60
         self.serializer = URLSafeTimedSerializer(secret, salt="live-ops-session-v1")
         self.state_serializer = URLSafeTimedSerializer(secret, salt="live-ops-oauth-state-v1")
 
