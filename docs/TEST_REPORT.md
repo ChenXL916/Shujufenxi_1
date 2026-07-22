@@ -174,3 +174,5 @@
 - 未配置公网后端时，线上 `/api` 会命中 SPA 回退。新增响应格式保护与总览错误态后，前端不再把 `text/html` 当作接口 JSON；定向 ESLint、TypeScript、10 个单测与生产构建均通过。
 - 响应保护修复后的最终 `make.cmd check` 退出 0：176 个后端测试、17 个前端测试文件/61 个单测、生产构建和 6 个 Playwright E2E 全部通过；覆盖率 86.42%。
 - 最终 `make.cmd verify-production` 退出 0：7 服务、33 表、迁移、强密钥策略、生产无夹具写入与 Docker 构建路径均通过；Docker 运行态限制不变。
+- GitHub Linux CI 首轮仅有一条原有预警页重交互测试在 5.35 秒触发默认 5 秒超时；定向放宽该测试至 15 秒后连续复跑 3/3 通过（4.55–5.23 秒），未跳过测试或删除断言。
+- CI 稳定性修复后的最终复验：`make.cmd check` 退出 0（176 个后端、17 个前端文件/61 个单测、生产构建、6 个 Playwright E2E，覆盖率 86.42%）；`make.cmd verify-production` 退出 0。
