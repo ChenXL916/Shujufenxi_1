@@ -17,8 +17,18 @@ const api = vi.hoisted(() => ({
   testAlertPush: vi.fn(),
   testAnchorTrendPush: vi.fn(),
 }))
+const antdMessage = vi.hoisted(() => ({
+  error: vi.fn(),
+  info: vi.fn(),
+  success: vi.fn(),
+  warning: vi.fn(),
+}))
 
 vi.mock('@/api/client', () => api)
+vi.mock('antd', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('antd')>()
+  return { ...actual, message: antdMessage }
+})
 
 import { AlertsPage } from './AlertsPage'
 
