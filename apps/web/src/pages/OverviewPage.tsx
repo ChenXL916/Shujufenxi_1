@@ -47,10 +47,15 @@ export function OverviewPage() {
         reset={reset}
         showPeriodPresets
       />
-      {overview.isLoading ? (
+      {options.isLoading || overview.isLoading ? (
         <LoadingPanel />
-      ) : overview.isError ? (
-        <ErrorPanel onRetry={() => void overview.refetch()} />
+      ) : options.isError || overview.isError ? (
+        <ErrorPanel
+          onRetry={() => {
+            void options.refetch()
+            if (filters.startDate) void overview.refetch()
+          }}
+        />
       ) : !overview.data || !hasKpiData ? (
         <EmptyPanel />
       ) : (

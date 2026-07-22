@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { type AxiosResponse } from 'axios'
 import type {
   AnchorTrendEventDetails,
   AnchorTrendFilters,
@@ -131,6 +131,23 @@ client.interceptors.request.use((config) => {
   }
   return config
 })
+
+export class UnexpectedApiResponseError extends Error {
+  constructor() {
+    super('API 返回了非 JSON 内容，请检查生产后端与反向代理配置。')
+    this.name = 'UnexpectedApiResponseError'
+  }
+}
+
+export function ensureJsonApiResponse<T>(response: AxiosResponse<T>): AxiosResponse<T> {
+  if (response.config.responseType === 'blob' || response.status === 204) return response
+
+  const contentType = String(response.headers?.['content-type'] ?? '').toLowerCase()
+  if (!contentType.includes('json')) throw new UnexpectedApiResponseError()
+  return response
+}
+
+client.interceptors.response.use(ensureJsonApiResponse)
 
 function params(filters: DashboardFilters) {
   return {

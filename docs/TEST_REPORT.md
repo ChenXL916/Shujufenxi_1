@@ -169,3 +169,10 @@
 - `make.cmd check` 退出 0：176 个后端测试、17 个前端测试文件/58 个单测、生产构建与 6 个 Playwright E2E 全部通过；后端覆盖率 86.42%，高于 85% 门槛。
 - `make.cmd verify-production` 退出 0：7 个 Compose 服务、33 张迁移表、强密钥策略、生产无夹具写入与 Docker 构建路径验证通过。
 - 当前主机没有 Docker CLI，因此容器运行态仍未在本机验证；Netlify 只托管前端，要在线读取飞书实时数据还必须部署 API、数据库、Redis、Worker/Beat，并配置 `NETLIFY_BACKEND_ORIGIN`。
+- PR #1 合并后已在 Netlify 创建 `jskzsjfx` 项目并连接 `ChenXL916/Shujufenxi_1` 的 `main`；首个生产构建读取根目录 `netlify.toml`，确认当前目录为 `apps/web`、命令为 `npm run build`。
+- 线上冒烟通过：`https://jskzsjfx.netlify.app/` 与 `/overview` 均返回 HTTP 200，React Router 自动进入经营总览，默认 404 已消失。
+- 未配置公网后端时，线上 `/api` 会命中 SPA 回退。新增响应格式保护与总览错误态后，前端不再把 `text/html` 当作接口 JSON；定向 ESLint、TypeScript、10 个单测与生产构建均通过。
+- 响应保护修复后的最终 `make.cmd check` 退出 0：176 个后端测试、17 个前端测试文件/61 个单测、生产构建和 6 个 Playwright E2E 全部通过；覆盖率 86.42%。
+- 最终 `make.cmd verify-production` 退出 0：7 服务、33 表、迁移、强密钥策略、生产无夹具写入与 Docker 构建路径均通过；Docker 运行态限制不变。
+- GitHub Linux CI 首轮仅有一条原有预警页重交互测试在 5.35 秒触发默认 5 秒超时；定向放宽该测试至 15 秒后连续复跑 3/3 通过（4.55–5.23 秒），未跳过测试或删除断言。
+- CI 稳定性修复后的最终复验：`make.cmd check` 退出 0（176 个后端、17 个前端文件/61 个单测、生产构建、6 个 Playwright E2E，覆盖率 86.42%）；`make.cmd verify-production` 退出 0。
