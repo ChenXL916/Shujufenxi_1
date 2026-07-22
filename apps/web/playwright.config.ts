@@ -5,8 +5,14 @@ import { fileURLToPath } from 'node:url'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../..')
 const databaseUrl = `sqlite+pysqlite:///${path.join(root, 'e2e.db').replace(/\\/g, '/')}`
-const apiPython = path.join(root, 'apps', 'api', '.venv', 'Scripts', 'python.exe')
-const apiVirtualEnv = path.join(root, 'apps', 'api', '.venv')
+const apiPython =
+  process.env.E2E_PYTHON ??
+  (process.platform === 'win32'
+    ? path.join(root, 'apps', 'api', '.venv', 'Scripts', 'python.exe')
+    : 'python')
+const apiVirtualEnv =
+  process.env.VIRTUAL_ENV ??
+  (process.platform === 'win32' ? path.join(root, 'apps', 'api', '.venv') : '')
 const apiPythonPath = path.join(root, 'apps', 'api')
 const apiPort = Number(process.env.E2E_API_PORT ?? '18000')
 const webPort = Number(process.env.E2E_WEB_PORT ?? '4173')
