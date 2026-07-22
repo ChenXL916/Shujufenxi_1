@@ -369,4 +369,7 @@
 - [x] 完整 `make.cmd check` 退出 0：182 个后端测试、17 个前端文件/63 个单测、生产构建和 6 个 Playwright Chromium E2E 全部通过；领域与服务覆盖率 86.36%。
 - [x] 部署前使用生产环境配置完成 SQLite 在线备份：`backups/live_ops_20260722T101626Z.sqlite3`。
 - [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥、生产无夹具写入及 Docker 构建路径均有效；本机无 Docker CLI，容器部分完成等价静态验收。
-- [ ] 公网临时账号登录、权限隔离冒烟、Netlify 发布和最终 GitHub 推送待执行。
+- [x] 后端已按根目录 `.env` 与 `.env.tunnel` 合并配置重启；本地 `/health` 与 `/ready` 均为 HTTP 200，生产安全校验保持开启。
+- [x] 提交 `f13e026` 已推送到 `ChenXL916/Shujufenxi_1` 的 `main`，Netlify 自动发布的新入口包已包含“登录并查看数据”。
+- [x] 公网临时随机密码冒烟通过：`live_manager_test` 以 `auth_mode=password` 登录，`/auth/me` 返回 `live_manager` 与 3 个直播间，筛选返回 3 个直播间，权限管理接口 HTTP 403；退出 HTTP 204，退出后 `/auth/me` HTTP 401。
+- [x] 冒烟结束后已清除临时密码，恢复原最近登录时间并删除临时登录审计；复查 `PASSWORD_CLEARED=True`、`SMOKE_AUDIT_ROWS=0`，未留下可登录测试凭据。

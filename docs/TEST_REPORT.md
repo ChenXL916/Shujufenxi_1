@@ -233,3 +233,6 @@
 - 完整门禁：`make.cmd check` 退出 0；182 个后端测试全通过，领域与服务覆盖率 86.36%；17 个前端测试文件/63 个单测全通过；Vite 生产构建 22 个 JS Chunk 均不超过 650 KiB；6 个 Chromium E2E 全通过。
 - 生产静态验收：`make.cmd verify-production` 退出 0，验证 7 个服务、33 张迁移表、生产强密钥、关闭开发旁路、无 fixture 写入及 Docker 构建路径。本机没有 Docker CLI，容器运行态仍为等价静态验收。
 - 数据安全：部署前已在线备份生产 SQLite 到 `backups/live_ops_20260722T101626Z.sqlite3`；自动测试没有调用真实飞书消息发送接口，也未修改直播经营事实。
+- 生产发布：提交 `f13e026` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 生产站点 `/`、`/overview` 与 `/ready` 均为 HTTP 200，线上主入口包与本地生产构建一致并包含网页账号登录界面。
+- 公网账号链路：对隔离的 `live_manager_test` 临时设置随机密码后，`POST /auth/password/login` HTTP 200，`/auth/me` 返回 `auth_mode=password`、`role=live_manager` 和 3 个直播间；筛选接口返回 3 个直播间，权限管理接口 HTTP 403；退出 HTTP 204，退出后会话 HTTP 401。
+- 公网测试清理：临时密码只存在于测试进程内，测试结束后已把 `password_hash`、最近登录时间和临时登录审计恢复/清理；复查为 `PASSWORD_CLEARED=True`、`SMOKE_AUDIT_ROWS=0`。没有在代码、文档、Git 或日志中记录该随机密码。
