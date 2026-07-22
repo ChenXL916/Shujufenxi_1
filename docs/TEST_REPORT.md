@@ -249,3 +249,4 @@
 - 运行验证：生产 API 重启后，本地 `/health`、`/ready` 与公网 `/ready` 均为 HTTP 200，`ready.mode=feishu`。
 - 公网会话冒烟：隔离账号临时随机密码登录 HTTP 200；登录与 `/auth/me` 响应均返回 `Max-Age=2592000`，Cookie 安全属性完整；复制 Cookie 到新客户端模拟浏览器重开后 `/auth/me` HTTP 200，角色为 `live_manager`、范围为 3 个直播间；退出 HTTP 204，退出后 `/auth/me` HTTP 401。
 - 清理复核：冒烟结束后恢复隔离账号原密码哈希、最近登录时间与更新时间，并清理本次新增登录审计；复查 `PASSWORD_RESTORED=True`、`SMOKE_AUDIT_RESTORED=True`，没有记录临时密码或 Cookie 内容。
+- 发布复核：功能提交 `f814d7a` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 生产入口从旧资源切换到 `/assets/index-BcTUAAJW.js`，线上脚本确认包含“本设备将保持登录”，公网 `/ready` 返回 `ready / feishu`。

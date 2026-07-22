@@ -387,3 +387,4 @@
 - [x] 部署前在线备份生产 SQLite 到 `backups/live_ops_20260722T103410Z.sqlite3`，随后重启本机生产 API；本地 `/health`、`/ready` 和公网 `/ready` 均为 HTTP 200。
 - [x] 公网临时随机密码冒烟通过：登录 Cookie 为 30 天且具备 `HttpOnly`、`Secure`、`SameSite=Lax`、根路径属性；`/auth/me` 滚动续期、复制 Cookie 模拟关闭后重开、`live_manager` 三房间范围及退出失效均通过。
 - [x] 冒烟完成后恢复隔离测试账号原密码哈希、最近登录时间与更新时间，并删除本次临时登录审计；复查 `PASSWORD_RESTORED=True`、`SMOKE_AUDIT_RESTORED=True`。
+- [x] 功能提交 `f814d7a` 已推送到 `ChenXL916/Shujufenxi_1` 的 `main`；Netlify 生产站点已切换至 `/assets/index-BcTUAAJW.js`，线上包包含“本设备将保持登录”提示，公网 `/ready` 为 `ready / feishu`。
