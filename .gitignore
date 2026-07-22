@@ -1,0 +1,59 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+dist/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+playwright-report/
+test-results/
+
+# Runtime databases, journals, logs and exports
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+*.har
+artifacts/
+exports/
+backups/
+
+# Private business fixtures and local Hermes attachments
+fixtures/*
+!fixtures/README.md
+.hermes/
+infra/certs/
+secrets/
+
+# Generated QA and acceptance evidence
+qa/evidence/
+qa/results/
+docs/acceptance/evidence/
+docs/ui/evidence/
+
+# OS/editor files
+.DS_Store
+Thumbs.db

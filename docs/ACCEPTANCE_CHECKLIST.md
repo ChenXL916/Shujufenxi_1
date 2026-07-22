@@ -1,0 +1,30 @@
+# Acceptance checklist
+
+- [x] Feishu live source connects and pages through records.
+- [x] Feishu schedule source connects and pages through records.
+- [x] Source schema discovery and field mapping work.
+- [x] Multiple rooms are supported without hard-coding.
+- [x] Excel fixture import is idempotent.
+- [x] Invalid calculation/error rows are excluded and logged.
+- [x] Anchor and controller names are normalized.
+- [x] Combination anchors and notes are handled.
+- [x] Schedule wide tables are unpivoted.
+- [x] Hourly facts and raw points both exist.
+- [x] X-axis shows natural hour plus anchor.
+- [x] Point mode shows real minute timestamps.
+- [x] All numeric metrics are selectable.
+- [x] Metric units are split into compatible axes/charts.
+- [x] Aggregated ROI and cost formulas are correct.
+- [x] Cumulative metrics are not summed incorrectly.
+- [x] Day, week, custom-date, and month comparisons work.
+- [x] 3.00 vs 1.50 renders 200% of baseline and +100% growth.
+- [x] Alert rules, thresholds, deduplication, retry, and acknowledgment work.
+- [x] Feishu bot card can be tested safely.
+- [x] Feishu SSO and room-level RBAC work.
+- [ ] Docker Compose starts the complete system.
+- [x] All lint, type checks, unit, integration, and E2E tests pass.
+- [x] Documentation and production verification report are complete.
+- [x] Anchor trend ROI uses ratio-of-sums, equal complete-day windows, sample gates, full persisted details, TopN cards, deduplication, and audited force resend.
+- [x] Anchor trend runtime database migration, room-level metadata redaction, desktop browser flow, and full quality gate pass.
+- [ ] Authorized Feishu business group receives real anchor rise/fall summary cards with target-side receipts.
+- [ ] Always-on Celery Worker/Beat scheduling and Feishu in-app mobile screenshots are verified.

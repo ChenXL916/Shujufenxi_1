@@ -1,0 +1,8 @@
+[Unit]
+Description=Live Ops PostgreSQL verified backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/live-ops/current/infra/scripts/backup_production.sh

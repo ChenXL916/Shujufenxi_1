@@ -1,0 +1,38 @@
+x-production-environment: &production-environment
+  APP_ENV: production
+  DEV_AUTH_BYPASS: "false"
+  APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL is required}
+  API_BASE_URL: ${API_BASE_URL:?API_BASE_URL is required}
+  CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required as a JSON array}
+  FEISHU_APP_ID: ${FEISHU_APP_ID:?FEISHU_APP_ID is required}
+  FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:?FEISHU_APP_SECRET is required}
+  FEISHU_REDIRECT_URI: ${FEISHU_REDIRECT_URI:?FEISHU_REDIRECT_URI is required}
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+  FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?FIELD_ENCRYPTION_KEY is required}
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+
+  api:
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    environment:
+      <<: *production-environment
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+
+  celery-worker:
+    environment:
+      <<: *production-environment
+
+  celery-beat:
+    environment:
+      <<: *production-environment
+
+  reverse-proxy:
+    ports:
+      - "0.0.0.0:8443:8443"
+    volumes:
+      - ./infra/nginx/production.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${TLS_CERT_FILE:?TLS_CERT_FILE is required}:/etc/nginx/tls/server.crt:ro
+      - ${TLS_KEY_FILE:?TLS_KEY_FILE is required}:/etc/nginx/tls/server.key:ro
