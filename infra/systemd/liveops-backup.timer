@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Live Ops PostgreSQL backup daily
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=liveops-backup.service
+
+[Install]
+WantedBy=timers.target

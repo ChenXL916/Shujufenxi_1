@@ -1,0 +1,7 @@
+field_aliases:
+  曝光-观看率(人数）: 曝光-观看率（人数）
+  时段曝光-观看率(人数）: 时段曝光-观看率（人数）
+  整体成交金额（元）: 整体成交金额
+person_prefixes: [J, Q]
+combination_separators: ["+", "＋", "/", "、", "&"]
+invalid_people: ["", "断播", "用于计算"]

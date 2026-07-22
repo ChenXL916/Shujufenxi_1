@@ -1,0 +1,48 @@
+dimensions: [主播, 场控, 月份, 自动检查, 时间, 时段]
+metrics:
+  - { key: room_gmv, field: 直播间成交金额, category: 金额, unit: currency, precision: 2, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: order_count, field: 成交订单数, category: 订单, unit: count, precision: 0, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: avg_order_value, field: 笔单价, category: 成本, unit: currency, precision: 2, scope: cumulative, aggregation: LAST, direction: higher_better }
+  - { key: room_paid_amount, field: 直播间用户支付金额, category: 金额, unit: currency, precision: 2, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: paid_per_mille, field: 千次观看用户支付金额, category: 金额, unit: currency, precision: 2, scope: cumulative, aggregation: LAST, direction: higher_better }
+  - { key: online_users, field: 实时在线人数, category: 人数, unit: count, precision: 0, scope: instant, aggregation: LAST, direction: contextual }
+  - { key: room_impressions, field: 直播间曝光人数, category: 人数, unit: count, precision: 0, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: room_viewers, field: 直播间观看人数, category: 人数, unit: count, precision: 0, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: product_impressions, field: 商品曝光人数, category: 人数, unit: count, precision: 0, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: product_clickers, field: 商品点击人数, category: 人数, unit: count, precision: 0, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: buyers, field: 成交人数, category: 人数, unit: count, precision: 0, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: impression_view_rate, field: 曝光-观看率(人数）, category: 转化, unit: percent, precision: 2, scope: cumulative, aggregation: LAST, direction: higher_better }
+  - { key: view_product_impression_rate, field: 观看-商品曝光率(人数）, category: 转化, unit: percent, precision: 2, scope: cumulative, aggregation: LAST, direction: higher_better }
+  - { key: product_click_rate, field: 商品曝光-点击率(人数）, category: 转化, unit: percent, precision: 2, scope: cumulative, aggregation: LAST, direction: higher_better }
+  - { key: click_conversion_rate, field: 商品点击-成交转化率(人数）, category: 转化, unit: percent, precision: 2, scope: cumulative, aggregation: LAST, direction: higher_better }
+  - { key: impression_conversion_rate, field: 曝光-成交转化率（人数）, category: 转化, unit: percent, precision: 2, scope: cumulative, aggregation: LAST, direction: higher_better }
+  - { key: period_gmv, field: 时段成交金额, category: 金额, unit: currency, precision: 2, scope: period, aggregation: SUM, direction: higher_better, default: true }
+  - { key: period_paid_amount, field: 时段支付金额, category: 金额, unit: currency, precision: 2, scope: period, aggregation: SUM, direction: higher_better, default: true }
+  - { key: period_order_count, field: 时段成交单数, category: 订单, unit: count, precision: 0, scope: period, aggregation: SUM, direction: higher_better, default: true }
+  - { key: period_avg_order_value, field: 时段笔单价, category: 成本, unit: currency, precision: 2, scope: derived, aggregation: RATIO_OF_SUMS, numerator: period_gmv, denominator: period_order_count, direction: higher_better }
+  - { key: period_buyers, field: 时段成交人数, category: 人数, unit: count, precision: 0, scope: period, aggregation: SUM, direction: higher_better }
+  - { key: period_viewers, field: 时段观看人数, category: 人数, unit: count, precision: 0, scope: period, aggregation: SUM, direction: higher_better }
+  - { key: period_view_conversion_rate, field: 时段观看-成交率（人数）, category: 转化, unit: percent, precision: 2, scope: derived, aggregation: RATIO_OF_SUMS, numerator: period_buyers, denominator: period_viewers, direction: higher_better }
+  - { key: period_impression_view_rate, field: 时段曝光-观看率(人数）, category: 转化, unit: percent, precision: 2, scope: period, aggregation: NONE, direction: higher_better }
+  - { key: period_view_product_impression_rate, field: 时段观看-商品曝光率(人数）, category: 转化, unit: percent, precision: 2, scope: period, aggregation: NONE, direction: higher_better }
+  - { key: period_product_click_rate, field: 时段商品曝光-点击率(人数）, category: 转化, unit: percent, precision: 2, scope: period, aggregation: NONE, direction: higher_better }
+  - { key: period_click_conversion_rate, field: 时段商品点击-成交转化率(人数）, category: 转化, unit: percent, precision: 2, scope: period, aggregation: NONE, direction: higher_better }
+  - { key: period_impression_conversion_rate, field: 时段曝光-成交转化率（人数）, category: 转化, unit: percent, precision: 2, scope: period, aggregation: NONE, direction: higher_better }
+  - { key: period_spend, field: 时段消耗, category: 消耗, unit: currency, precision: 2, scope: period, aggregation: SUM, direction: contextual, default: true, supports_hourly_trend: true, supports_kline: true, alertable: true }
+  - { key: period_overall_roi, field: 时段整体支付ROI, category: ROI, unit: ratio, precision: 2, scope: derived, aggregation: RATIO_OF_SUMS, numerator: period_overall_amount, denominator: period_spend, direction: higher_better, default: true, supports_hourly_trend: true, supports_kline: true, alertable: true }
+  - { key: period_overall_amount, field: 时段整体成交金额, category: 金额, unit: currency, precision: 2, scope: period, aggregation: SUM, direction: higher_better, default: true }
+  - { key: period_overall_orders, field: 时段整体成交订单数, category: 订单, unit: count, precision: 0, scope: period, aggregation: SUM, direction: higher_better }
+  - { key: period_overall_order_cost, field: 时段整体成交订单成本, category: 成本, unit: currency, precision: 2, scope: derived, aggregation: RATIO_OF_SUMS, numerator: period_spend, denominator: period_overall_orders, direction: lower_better, supports_hourly_trend: true, supports_kline: true, alertable: true }
+  - { key: period_net_roi, field: 时段净支付ROI, category: ROI, unit: ratio, precision: 2, scope: derived, aggregation: RATIO_OF_SUMS, numerator: period_net_amount, denominator: period_spend, direction: higher_better }
+  - { key: period_net_amount, field: 时段净成交金额, category: 金额, unit: currency, precision: 2, scope: period, aggregation: SUM, direction: higher_better }
+  - { key: period_net_orders, field: 时段净成交订单数, category: 订单, unit: count, precision: 0, scope: period, aggregation: SUM, direction: higher_better }
+  - { key: period_net_order_cost, field: 时段净成交订单成本, category: 成本, unit: currency, precision: 2, scope: derived, aggregation: RATIO_OF_SUMS, numerator: period_spend, denominator: period_net_orders, direction: lower_better }
+  - { key: spend, field: 消耗, category: 消耗, unit: currency, precision: 2, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: contextual }
+  - { key: overall_roi, field: 整体支付ROI, category: ROI, unit: ratio, precision: 2, scope: cumulative, aggregation: LAST, direction: higher_better }
+  - { key: overall_amount, field: 整体成交金额（元）, category: 金额, unit: currency, precision: 2, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: overall_orders, field: 整体成交订单数, category: 订单, unit: count, precision: 0, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: overall_order_cost, field: 整体成交订单成本（元）, category: 成本, unit: currency, precision: 2, scope: cumulative, aggregation: LAST, direction: lower_better }
+  - { key: net_roi, field: 净支付ROI, category: ROI, unit: ratio, precision: 2, scope: cumulative, aggregation: LAST, direction: higher_better }
+  - { key: net_amount, field: 净成交金额, category: 金额, unit: currency, precision: 2, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: net_orders, field: 净成交订单数, category: 订单, unit: count, precision: 0, scope: cumulative, aggregation: LAST_PER_ROOM_DAY, direction: higher_better }
+  - { key: net_order_cost, field: 净成交订单成本（元）, category: 成本, unit: currency, precision: 2, scope: cumulative, aggregation: LAST, direction: lower_better }

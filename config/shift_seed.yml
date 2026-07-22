@@ -1,0 +1,7 @@
+shifts:
+  - { name: "00-08", start: "00:00", end: "08:00", crosses_midnight: false, is_rest: false }
+  - { name: "08-17", start: "08:00", end: "17:00", crosses_midnight: false, is_rest: false }
+  - { name: "12-20", start: "12:00", end: "20:00", crosses_midnight: false, is_rest: false }
+  - { name: "20-05", start: "20:00", end: "05:00", crosses_midnight: true, is_rest: false }
+  - { name: "休息", start: null, end: null, crosses_midnight: false, is_rest: true }
+unconfigured: ["正常班", "自由班", "早班", "晚班", "凌晨班"]

@@ -1,0 +1,32 @@
+{
+    auto_https off
+    admin 127.0.0.1:2019
+}
+
+http://127.0.0.1:8080 {
+    encode zstd gzip
+
+    route {
+        @privateDocs path /api/v1/docs* /api/v1/openapi.json
+        respond @privateDocs 404
+
+        @backend path /api/* /auth/* /health /ready
+        reverse_proxy @backend 127.0.0.1:8000 {
+            header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+            header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+        }
+
+        root * C:/Users/Administrator/Documents/直播间数据/codex_live_dashboard_pack/apps/web/dist
+        try_files {path} /index.html
+        file_server
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        X-Frame-Options DENY
+    }
+}

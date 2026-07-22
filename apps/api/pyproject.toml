@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "live-ops-api"
+version = "0.1.0"
+description = "多直播间小时数据驾驶舱 API"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.14,<2",
+  "celery[redis]>=5.4,<6",
+  "cryptography>=48.0.1,<49",
+  "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
+  "itsdangerous>=2.2,<3",
+  "openpyxl>=3.1,<4",
+  "psycopg[binary]>=3.2,<4",
+  "pydantic-settings>=2.7,<3",
+  "python-multipart>=0.0.20,<1",
+  "PyYAML>=6,<7",
+  "redis>=5.2,<7",
+  "sqlalchemy>=2.0,<3",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.25,<1",
+  "pytest-cov>=6,<8",
+  "respx>=0.22,<1",
+  "ruff>=0.9,<1",
+  "types-PyYAML>=6,<7",
+  "types-openpyxl>=3.1,<4",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+markers = ["integration: integration tests using mock external services"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "S"]
+ignore = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["alembic"]
+
+[[tool.mypy.overrides]]
+module = ["celery", "celery.*"]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
