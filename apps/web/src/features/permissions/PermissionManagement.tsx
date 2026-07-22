@@ -195,6 +195,12 @@ export function PermissionManagement() {
         title="RBAC + Data Scope 已由后端统一执行"
         description="用户 → 角色 → 权限点 → 直播间范围。前端仅负责展示；跨直播间请求、详情和导出仍由 API 返回 403。个人自定义范围优先于角色范围。"
       />
+      <Alert
+        showIcon
+        type="success"
+        title="同事先用飞书登录一次，再按账号分配权限"
+        description="开启自动开户后，新同事首次登录会出现在下方用户列表。你可以给每个人分别设置直播主管、单直播间 PM、受限查看者，或用个人自定义范围精确选择直播间。"
+      />
       <Card size="small">
         <Space wrap size={[8, 8]}>
           <Tag color="purple">{data.roles.length} 个角色</Tag>
@@ -296,6 +302,22 @@ function UsersPanel({
                 <Typography.Text type="secondary">
                   {item.room_scope_mode === 'custom' ? '个人自定义范围' : '继承角色范围'}
                 </Typography.Text>
+              </Space>
+            ),
+          },
+          {
+            title: '飞书登录',
+            width: 130,
+            render: (_, item) => (
+              <Space orientation="vertical" size={0}>
+                <Tag color={item.feishu_bound ? 'green' : 'gold'}>
+                  {item.feishu_bound ? '已绑定' : '待首次登录'}
+                </Tag>
+                {item.last_login_at ? (
+                  <Typography.Text type="secondary">
+                    {new Date(item.last_login_at).toLocaleDateString('zh-CN')}
+                  </Typography.Text>
+                ) : null}
               </Space>
             ),
           },

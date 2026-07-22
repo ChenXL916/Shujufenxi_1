@@ -22,6 +22,7 @@ from app.integrations.feishu.oauth_store import FeishuOAuthStore
 from app.models.entities import (
     AuditLog,
     MetricDefinition,
+    Role,
     Room,
     ShiftRule,
     SourceConfig,
@@ -88,6 +89,8 @@ class SettingsPatch(BaseModel):
     feishu_bot_webhook_url: str | None = Field(default=None, max_length=2048)
     feishu_bot_secret: str | None = Field(default=None, max_length=512)
     feishu_bot_chat_id: str | None = Field(default=None, max_length=255)
+    feishu_auto_provision_enabled: bool | None = None
+    feishu_auto_provision_role: str | None = Field(default=None, min_length=1, max_length=80)
     daily_summary_time: str | None = None
 
     @field_validator(
@@ -393,6 +396,17 @@ def system_settings(db: DbSession, access: AdminAccess) -> dict[str, Any]:
         "feishu_bot_webhook_configured": bool(settings.feishu_bot_webhook_url),
         "feishu_bot_signing_secret_configured": bool(settings.feishu_bot_secret),
         "feishu_bot_chat_configured": bool(settings.feishu_bot_chat_id),
+        "feishu_auto_provision_enabled": settings.feishu_auto_provision_enabled,
+        "feishu_auto_provision_role": settings.feishu_auto_provision_role,
+        "feishu_auto_provision_role_options": [
+            {
+                "value": role.role_code or role.name,
+                "label": role.role_name or role.description or role.name,
+            }
+            for role in db.scalars(
+                select(Role).where(Role.active.is_(True), Role.all_permissions.is_(False))
+            )
+        ],
     }
 
 
@@ -403,6 +417,22 @@ def update_settings(
     db: DbSession,
     access: AdminAccess,
 ) -> dict[str, Any]:
+    if (
+        payload.feishu_auto_provision_role is not None
+        or payload.feishu_auto_provision_enabled is True
+    ):
+        proposed_role = payload.feishu_auto_provision_role
+        if proposed_role is None:
+            proposed_role = load_runtime_settings(db).feishu_auto_provision_role
+        role = db.scalar(
+            select(Role).where(
+                Role.role_code == proposed_role,
+                Role.active.is_(True),
+                Role.all_permissions.is_(False),
+            )
+        )
+        if role is None:
+            raise HTTPException(status_code=422, detail="自动开户默认角色不存在、已停用或权限过高")
     secret_box = SecretBox(get_settings())
     safe_after: dict[str, Any] = {}
     for key, value in payload.model_dump(exclude_none=True).items():

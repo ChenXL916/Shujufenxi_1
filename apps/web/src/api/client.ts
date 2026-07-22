@@ -64,6 +64,9 @@ export interface AdminSettings {
   feishu_bot_webhook_configured: boolean
   feishu_bot_signing_secret_configured: boolean
   feishu_bot_chat_configured: boolean
+  feishu_auto_provision_enabled: boolean
+  feishu_auto_provision_role: string
+  feishu_auto_provision_role_options: Array<{ value: string; label: string }>
 }
 
 export interface AdminSettingsPatch {
@@ -76,6 +79,8 @@ export interface AdminSettingsPatch {
   feishu_bot_webhook_url?: string
   feishu_bot_secret?: string
   feishu_bot_chat_id?: string
+  feishu_auto_provision_enabled?: boolean
+  feishu_auto_provision_role?: string
 }
 
 export function serializeQueryParams(parameters: Record<string, unknown>): string {

@@ -58,6 +58,15 @@ def test_complete_production_configuration_is_accepted() -> None:
     assert settings.feishu_credentials_configured is True
 
 
+def test_auto_provision_never_grants_developer_role() -> None:
+    with pytest.raises(ValueError, match="不能授予 developer"):
+        Settings(
+            _env_file=None,
+            feishu_auto_provision_enabled=True,
+            feishu_auto_provision_role="developer",
+        )
+
+
 def test_get_settings_merges_base_and_selected_environment_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

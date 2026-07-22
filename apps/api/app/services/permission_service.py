@@ -63,6 +63,65 @@ def user_has_permission(db: Session, user_id: uuid.UUID, permission_code: str) -
     )
 
 
+def provision_feishu_user(
+    session: Session,
+    *,
+    feishu_user_id: str,
+    name: str,
+    avatar_url: str | None,
+    email: str | None,
+    default_role_code: str,
+    ip_address: str | None = None,
+) -> User:
+    """Create a least-privilege business account for an authenticated Feishu identity."""
+    role = session.scalar(
+        select(Role).where(
+            Role.role_code == default_role_code,
+            Role.active.is_(True),
+        )
+    )
+    if role is None:
+        raise ValueError(f"飞书自动开户默认角色不可用：{default_role_code}")
+    if role.all_permissions or _role_code(role) == "developer":
+        raise ValueError("飞书自动开户不能授予 developer 角色")
+
+    normalized_email = email.strip().lower() if email and email.strip() else None
+    if normalized_email is not None:
+        email_owner = session.scalar(select(User.id).where(User.email == normalized_email))
+        if email_owner is not None:
+            normalized_email = None
+    user = User(
+        feishu_user_id=feishu_user_id,
+        username=None,
+        name=name,
+        avatar_url=avatar_url,
+        email=normalized_email,
+        password_hash=None,
+        status="active",
+        room_scope_mode="role",
+        role_name=_role_code(role),
+        active=True,
+    )
+    session.add(user)
+    session.flush()
+    _ensure_user_role(session, user, role)
+    record_permission_audit(
+        session,
+        actor_user_id=user.id,
+        action="feishu_user_auto_provisioned",
+        target_type="user",
+        target_id=str(user.id),
+        target_user_id=user.id,
+        after_value={
+            "role_code": _role_code(role),
+            "room_scope_mode": "role",
+            "feishu_identity_bound": True,
+        },
+        ip_address=ip_address,
+    )
+    return user
+
+
 def _redact(value: Any, key: str = "") -> Any:
     if any(part in key.lower() for part in SENSITIVE_KEY_PARTS):
         return "[REDACTED]"

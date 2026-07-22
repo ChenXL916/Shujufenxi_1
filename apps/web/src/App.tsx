@@ -20,7 +20,7 @@ import {
   TeamOutlined,
   TableOutlined,
 } from '@ant-design/icons'
-import { Avatar, Button, Drawer, Layout, Menu, Tooltip, Typography } from 'antd'
+import { Alert, Avatar, Button, Drawer, Layout, Menu, Result, Tooltip, Typography } from 'antd'
 import type { MenuProps } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from 'antd'
@@ -57,6 +57,7 @@ const AdminPage = lazy(() =>
 const { Header, Content, Sider } = Layout
 const items: MenuProps['items'] = [
   {
+    key: 'analysis',
     type: 'group',
     label: '分析',
     children: [
@@ -78,6 +79,7 @@ const items: MenuProps['items'] = [
     ],
   },
   {
+    key: 'people',
     type: 'group',
     label: '人员',
     children: [
@@ -100,6 +102,7 @@ const items: MenuProps['items'] = [
     ],
   },
   {
+    key: 'monitoring',
     type: 'group',
     label: '监控',
     children: [
@@ -107,6 +110,7 @@ const items: MenuProps['items'] = [
     ],
   },
   {
+    key: 'administration',
     type: 'group',
     label: '管理',
     children: [
@@ -213,6 +217,7 @@ export default function App() {
     queryKey: ['feishu-status'],
     queryFn: getFeishuStatus,
     refetchInterval: 60_000,
+    enabled: currentUser.isSuccess,
   })
   const sync = useMutation({
     mutationFn: syncFeishuNow,
@@ -227,6 +232,20 @@ export default function App() {
     onError: () => message.error('同步失败，请检查飞书授权状态'),
   })
   const realtimeReady = feishu.data?.realtime_ready === true
+  const permissionCodes = currentUser.data?.permissions ?? []
+  const hasAllPermissions = permissionCodes.includes('*')
+  const canViewDashboard =
+    hasAllPermissions ||
+    permissionCodes.includes('dashboard.view') ||
+    currentUser.data?.features?.can_view_dashboard === true
+  const canViewAlerts =
+    hasAllPermissions ||
+    permissionCodes.includes('alert.view') ||
+    currentUser.data?.features?.can_view_alerts === true
+  const canManagePermissions =
+    hasAllPermissions ||
+    permissionCodes.includes('permission.manage') ||
+    currentUser.data?.features?.can_manage_permissions === true
   const pageTitle = pageTitles[location.pathname] ?? '直播数据驾驶舱'
   const userName = currentUser.data?.name || '当前用户'
   const userRole = currentUser.data?.role
@@ -238,6 +257,8 @@ export default function App() {
   const canSync =
     currentUser.data?.features?.can_sync ??
     ['developer', 'admin', 'operator'].includes(currentUser.data?.role ?? '')
+  const noRoomAccess =
+    currentUser.data?.room_ids !== null && currentUser.data?.room_ids?.length === 0
   const handleSync = () => {
     if (!feishu.data?.user_authorized) {
       window.location.assign('/auth/feishu/login')
@@ -261,6 +282,44 @@ export default function App() {
         : feishu.data?.user_authorized
           ? '部分延迟'
           : '等待授权'
+  if (currentUser.isLoading) {
+    return (
+      <Layout className="app-shell" data-theme="index-warm-bi">
+        <LoadingPanel />
+      </Layout>
+    )
+  }
+  if (currentUser.isError || !currentUser.data) {
+    return (
+      <Layout className="app-shell" data-theme="index-warm-bi">
+        <Result
+          status="403"
+          title="请先使用飞书登录"
+          subTitle="每位同事都需要使用自己的飞书账号登录，系统会按账号分别应用角色和直播间权限。"
+          extra={
+            <Button type="primary" onClick={() => window.location.assign('/auth/feishu/login')}>
+              使用飞书登录
+            </Button>
+          }
+        />
+      </Layout>
+    )
+  }
+  const visibleItems = items?.filter((item) => {
+    if (!item || !('key' in item)) return false
+    if (item.key === 'analysis' || item.key === 'people') return canViewDashboard
+    if (item.key === 'monitoring') return canViewAlerts
+    if (item.key === 'administration') return canManagePermissions
+    return false
+  })
+  const defaultRoute = canViewDashboard ? '/overview' : canViewAlerts ? '/alerts' : '/access-denied'
+  const accessDenied = (
+    <Result
+      status="403"
+      title="当前账号没有此功能权限"
+      subTitle="请联系管理员在“用户与权限”中调整角色或直播间范围。"
+    />
+  )
   const navigation = (
     <Menu
       theme="light"
@@ -268,7 +327,7 @@ export default function App() {
       inlineCollapsed={!mobile && navigationCollapsed}
       className={!mobile && navigationCollapsed ? 'desktop-navigation-collapsed' : undefined}
       selectedKeys={[location.pathname]}
-      items={items}
+      items={visibleItems}
       onClick={() => mobile && setMobileNavigation(false)}
     />
   )
@@ -314,17 +373,19 @@ export default function App() {
                 <strong title={userName}>{userName}</strong>
                 <span title={userRole}>{userRole}</span>
               </div>
-              <Tooltip title="系统设置">
-                <Link
-                  className="sider-user-settings"
-                  to="/admin/settings"
-                  aria-label="打开系统设置"
-                  aria-hidden={navigationCollapsed}
-                  tabIndex={navigationCollapsed ? -1 : undefined}
-                >
-                  <SettingOutlined />
-                </Link>
-              </Tooltip>
+              {canManagePermissions ? (
+                <Tooltip title="系统设置">
+                  <Link
+                    className="sider-user-settings"
+                    to="/admin/settings"
+                    aria-label="打开系统设置"
+                    aria-hidden={navigationCollapsed}
+                    tabIndex={navigationCollapsed ? -1 : undefined}
+                  >
+                    <SettingOutlined />
+                  </Link>
+                </Tooltip>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -377,30 +438,63 @@ export default function App() {
                 {feishu.data?.user_authorized ? '立即同步' : '授权飞书'}
               </Button>
             ) : null}
-            <Tooltip title="预警中心">
-              <Link to="/alerts" className="header-icon-link" aria-label="打开预警中心">
-                <BellOutlined />
-              </Link>
-            </Tooltip>
+            {canViewAlerts ? (
+              <Tooltip title="预警中心">
+                <Link to="/alerts" className="header-icon-link" aria-label="打开预警中心">
+                  <BellOutlined />
+                </Link>
+              </Tooltip>
+            ) : null}
             <Tooltip title={`${userName} · ${userRole}`}>
               <Avatar className="user-avatar">{userName.slice(0, 1)}</Avatar>
             </Tooltip>
           </div>
         </Header>
         <Content className="app-content">
+          {noRoomAccess ? (
+            <Alert
+              showIcon
+              type="warning"
+              title="当前账号尚未分配直播间"
+              description="登录已经成功，但数据范围为空。请联系管理员在“用户与权限”中分配角色或直播间。"
+              style={{ marginBottom: 16 }}
+            />
+          ) : null}
           <Suspense fallback={<LoadingPanel />}>
             <Routes>
-              <Route path="/" element={<Navigate to="/overview" replace />} />
-              <Route path="/overview" element={<OverviewPage />} />
-              <Route path="/timeline" element={<TimelinePage />} />
-              <Route path="/comparison" element={<ComparisonPage />} />
-              <Route path="/anchors" element={<AnalysisPage dimension="anchors" />} />
-              <Route path="/controls" element={<AnalysisPage dimension="controls" />} />
-              <Route path="/pairings" element={<AnalysisPage dimension="pairings" />} />
-              <Route path="/pivot" element={<PivotPage />} />
-              <Route path="/alerts" element={<AlertsPage />} />
-              <Route path="/admin/:section" element={<AdminPage />} />
-              <Route path="*" element={<Navigate to="/overview" replace />} />
+              <Route path="/" element={<Navigate to={defaultRoute} replace />} />
+              <Route
+                path="/overview"
+                element={canViewDashboard ? <OverviewPage /> : accessDenied}
+              />
+              <Route
+                path="/timeline"
+                element={canViewDashboard ? <TimelinePage /> : accessDenied}
+              />
+              <Route
+                path="/comparison"
+                element={canViewDashboard ? <ComparisonPage /> : accessDenied}
+              />
+              <Route
+                path="/anchors"
+                element={canViewDashboard ? <AnalysisPage dimension="anchors" /> : accessDenied}
+              />
+              <Route
+                path="/controls"
+                element={canViewDashboard ? <AnalysisPage dimension="controls" /> : accessDenied}
+              />
+              <Route
+                path="/pairings"
+                element={canViewDashboard ? <AnalysisPage dimension="pairings" /> : accessDenied}
+              />
+              <Route path="/pivot" element={canViewDashboard ? <PivotPage /> : accessDenied} />
+              <Route path="/alerts" element={canViewAlerts ? <AlertsPage /> : accessDenied} />
+              <Route
+                path="/admin/:section"
+                element={canManagePermissions ? <AdminPage /> : accessDenied}
+              />
+              <Route path="/access-denied" element={accessDenied} />
+              <Route path="*" element={<Navigate to={defaultRoute} replace />} />
             </Routes>
           </Suspense>
         </Content>

@@ -1,16 +1,22 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
-import { vi } from 'vitest'
+import { beforeEach, vi } from 'vitest'
+
+const { getCurrentUser } = vi.hoisted(() => ({ getCurrentUser: vi.fn() }))
+
+const administrator = {
+  id: 'admin-1',
+  name: '数据管理员',
+  email: 'admin@example.com',
+  role: 'developer',
+  permissions: ['*'],
+  room_ids: null,
+  scope_label: '全部直播间',
+}
 
 vi.mock('@/api/client', () => ({
-  getCurrentUser: vi.fn().mockResolvedValue({
-    id: 'admin-1',
-    name: '数据管理员',
-    email: 'admin@example.com',
-    role: 'admin',
-    room_ids: [],
-  }),
+  getCurrentUser,
   getFeishuStatus: vi.fn().mockResolvedValue({
     realtime_ready: false,
     user_authorized: false,
@@ -43,6 +49,11 @@ vi.mock('@/api/client', () => ({
 
 import App from './App'
 
+beforeEach(() => {
+  getCurrentUser.mockReset()
+  getCurrentUser.mockResolvedValue(administrator)
+})
+
 test('renders the Chinese dashboard shell and navigation', async () => {
   render(
     <QueryClientProvider client={new QueryClient()}>
@@ -52,7 +63,7 @@ test('renders the Chinese dashboard shell and navigation', async () => {
     </QueryClientProvider>,
   )
 
-  expect(screen.getByText('直播运营驾驶舱')).toBeInTheDocument()
+  expect(await screen.findByText('直播运营驾驶舱')).toBeInTheDocument()
   expect(document.querySelector('.desktop-workspace-title')).toHaveTextContent('运营工作台')
   expect(document.querySelector('.mobile-page-title')).toHaveTextContent('预警中心')
   expect(document.querySelector('.app-shell')).toHaveAttribute('data-theme', 'index-warm-bi')
@@ -74,7 +85,7 @@ test('桌面侧栏折叠时主导航进入图标折叠模式', async () => {
     </QueryClientProvider>,
   )
 
-  const navigation = screen.getByRole('navigation', { name: '主导航' })
+  const navigation = await screen.findByRole('navigation', { name: '主导航' })
   expect(navigation.querySelector('.ant-menu-inline-collapsed')).not.toBeInTheDocument()
 
   fireEvent.click(screen.getByRole('button', { name: '折叠主导航' }))
@@ -106,7 +117,7 @@ test('移动主导航使用可聚焦按钮且关闭时不暴露隐藏链接', as
     </QueryClientProvider>,
   )
 
-  const trigger = screen.getByRole('button', { name: '打开主导航' })
+  const trigger = await screen.findByRole('button', { name: '打开主导航' })
   trigger.focus()
   expect(trigger).toHaveFocus()
   await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'false'))
@@ -118,4 +129,44 @@ test('移动主导航使用可聚焦按钮且关闭时不暴露隐藏链接', as
   await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'))
   expect(await screen.findByRole('link', { name: '经营总览' })).toBeInTheDocument()
   mediaQuery.mockRestore()
+})
+
+test('普通业务账号只显示被授权的分析和预警入口', async () => {
+  getCurrentUser.mockResolvedValue({
+    id: 'manager-1',
+    name: '直播主管',
+    role: 'live_manager',
+    permissions: ['dashboard.view', 'dashboard.export', 'alert.view'],
+    room_ids: ['room-1'],
+    scope_label: '直播间 A',
+  })
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={['/overview']}>
+        <App />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+
+  expect(await screen.findByText('分析')).toBeInTheDocument()
+  expect(screen.getByText('人员')).toBeInTheDocument()
+  expect(screen.getByText('监控')).toBeInTheDocument()
+  expect(screen.queryByText('管理')).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: '打开系统设置' })).not.toBeInTheDocument()
+})
+
+test('未登录访问共享链接时显示飞书登录入口', async () => {
+  getCurrentUser.mockRejectedValueOnce(new Error('unauthorized'))
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MemoryRouter initialEntries={['/overview']}>
+        <App />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+
+  expect(await screen.findByText('请先使用飞书登录')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '使用飞书登录' })).toBeInTheDocument()
 })

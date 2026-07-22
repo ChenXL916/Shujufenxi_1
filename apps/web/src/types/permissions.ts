@@ -10,6 +10,8 @@ export interface PermissionUser {
   room_ids: string[] | null
   room_names: string[]
   scope_label: string
+  feishu_bound: boolean
+  last_login_at: string | null
 }
 
 export interface PermissionRole {

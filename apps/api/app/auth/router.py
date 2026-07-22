@@ -6,9 +6,9 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import Access, SyncAccess, require_csrf
@@ -21,7 +21,7 @@ from app.integrations.feishu.client import FeishuError
 from app.integrations.feishu.oauth_store import FeishuOAuthStore, FeishuReauthorizationRequired
 from app.models.entities import RoomResource, SourceConfig, User
 from app.services.feishu_sync_service import sync_configured_sources
-from app.services.permission_service import user_has_permission
+from app.services.permission_service import provision_feishu_user, user_has_permission
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -50,6 +50,7 @@ def feishu_login(db: DbSession) -> Response:
 
 @router.get("/feishu/callback")
 async def feishu_callback(
+    request: Request,
     db: DbSession,
     code: Annotated[str, Query(min_length=1)],
     state: Annotated[str, Query(min_length=1)],
@@ -74,7 +75,10 @@ async def feishu_callback(
             db.scalars(
                 select(User).where(
                     func.lower(func.trim(User.email)) == normalized_email,
-                    User.feishu_user_id.is_(None),
+                    or_(
+                        User.feishu_user_id.is_(None),
+                        User.feishu_user_id.like("pending:%"),
+                    ),
                     User.active.is_(True),
                 )
             )
@@ -83,13 +87,32 @@ async def feishu_callback(
             user = invitations[0]
             user.feishu_user_id = identity.user_id
     if user is None:
-        raise HTTPException(
-            status_code=403,
-            detail="该飞书账号尚未被邀请使用本系统",
-        )
+        if not settings.feishu_auto_provision_enabled:
+            raise HTTPException(
+                status_code=403,
+                detail="该飞书账号尚未被邀请使用本系统",
+            )
+        try:
+            user = provision_feishu_user(
+                db,
+                feishu_user_id=identity.user_id,
+                name=identity.name,
+                avatar_url=identity.avatar_url,
+                email=identity.email,
+                default_role_code=settings.feishu_auto_provision_role,
+                ip_address=request.client.host if request.client else None,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
     user.name = identity.name
     user.avatar_url = identity.avatar_url
-    user.email = identity.email
+    if identity.email:
+        normalized_email = identity.email.strip().lower()
+        conflicting_user = db.scalar(
+            select(User.id).where(User.email == normalized_email, User.id != user.id)
+        )
+        if conflicting_user is None:
+            user.email = normalized_email
     user.last_login_at = utc_now()
     db.commit()
     sync_result = "identity_only"
@@ -227,6 +250,16 @@ def current_user(access: Access, db: DbSession) -> dict[str, object]:
         "can_manage_system": access.has_permission("system.manage"),
         "can_manage_alerts": access.has_permission("alert.manage"),
         "can_sync": access.has_permission("sync.run"),
+        "features": {
+            "can_view_dashboard": access.has_permission("dashboard.view"),
+            "can_export": access.has_permission("dashboard.export"),
+            "can_view_alerts": access.has_permission("alert.view"),
+            "can_manage_alerts": access.has_permission("alert.manage"),
+            "can_manage_permissions": access.has_permission("permission.manage"),
+            "can_manage_system": access.has_permission("system.manage"),
+            "can_manage_feishu": access.has_permission("feishu.manage"),
+            "can_sync": access.has_permission("sync.run"),
+        },
     }
     if access.user_id is None:
         return {

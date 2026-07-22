@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     feishu_bot_webhook_url: str = ""
     feishu_bot_secret: str = ""
     feishu_bot_chat_id: str = ""
+    feishu_auto_provision_enabled: bool = False
+    feishu_auto_provision_role: str = "live_manager"
 
     live_sync_interval_minutes: int = 5
     schedule_sync_interval_minutes: int = 30
@@ -61,6 +63,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def enforce_production_security(self) -> Settings:
+        if self.feishu_auto_provision_enabled and self.feishu_auto_provision_role == "developer":
+            raise ValueError("飞书自动开户不能授予 developer 角色")
         if self.app_env == "production":
             if self.dev_auth_bypass:
                 raise ValueError("生产环境必须关闭 DEV_AUTH_BYPASS")

@@ -18,6 +18,8 @@ RUNTIME_KEYS = {
     "feishu_bot_webhook_url",
     "feishu_bot_secret",
     "feishu_bot_chat_id",
+    "feishu_auto_provision_enabled",
+    "feishu_auto_provision_role",
 }
 
 

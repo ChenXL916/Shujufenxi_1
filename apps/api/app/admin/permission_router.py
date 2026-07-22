@@ -146,6 +146,10 @@ def _serialize_user(db: Session, user: User) -> dict[str, Any]:
         "room_ids": None if room_ids is None else [str(item) for item in room_ids],
         "room_names": room_names,
         "scope_label": "全部直播间" if room_ids is None else ("、".join(room_names) or "无直播间"),
+        "feishu_bound": bool(
+            user.feishu_user_id and not user.feishu_user_id.startswith(("pending:", "test:"))
+        ),
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
     }
 
 
@@ -336,7 +340,7 @@ def create_user(
     roles = _roles_by_codes(db, payload.role_codes)
     room_ids = None if payload.room_ids is None else _validate_room_ids(db, payload.room_ids)
     user = User(
-        feishu_user_id=f"pending:{uuid.uuid4()}",
+        feishu_user_id=None,
         username=payload.username.strip(),
         name=payload.name.strip(),
         email=payload.email.strip().lower(),

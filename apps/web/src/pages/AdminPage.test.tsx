@@ -15,6 +15,9 @@ const { patchAdminSettings } = vi.hoisted(() => ({
     feishu_bot_webhook_configured: true,
     feishu_bot_signing_secret_configured: false,
     feishu_bot_chat_configured: false,
+    feishu_auto_provision_enabled: true,
+    feishu_auto_provision_role: 'live_manager',
+    feishu_auto_provision_role_options: [{ value: 'live_manager', label: '直播主管' }],
   }),
 }))
 
@@ -29,6 +32,9 @@ vi.mock('@/api/client', () => ({
     feishu_bot_webhook_configured: false,
     feishu_bot_signing_secret_configured: false,
     feishu_bot_chat_configured: false,
+    feishu_auto_provision_enabled: true,
+    feishu_auto_provision_role: 'live_manager',
+    feishu_auto_provision_role_options: [{ value: 'live_manager', label: '直播主管' }],
   }),
   patchAdminSettings,
   getRoomMetricTargets: vi.fn().mockResolvedValue([]),
@@ -51,6 +57,8 @@ vi.mock('@/api/client', () => ({
         room_ids: ['water-room'],
         room_names: ['Mistine-水散粉'],
         scope_label: 'Mistine-水散粉',
+        feishu_bound: false,
+        last_login_at: null,
       },
     ],
     roles: [

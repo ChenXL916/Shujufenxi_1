@@ -10,7 +10,9 @@ import {
   Input,
   InputNumber,
   message,
+  Select,
   Space,
+  Switch,
   Table,
   Tabs,
   Tag,
@@ -281,6 +283,8 @@ function SettingsPanel() {
           schedule_sync_interval_minutes: settings.schedule_sync_interval_minutes,
           alert_delay_minutes: settings.alert_delay_minutes,
           daily_summary_time: settings.daily_summary_time,
+          feishu_auto_provision_enabled: settings.feishu_auto_provision_enabled,
+          feishu_auto_provision_role: settings.feishu_auto_provision_role,
         }}
         onFinish={submit}
       >
@@ -310,6 +314,23 @@ function SettingsPanel() {
               settings.feishu_app_configured ? '已配置；留空保持不变' : '请输入 App Secret'
             }
           />
+        </Form.Item>
+        <Typography.Title level={5}>同事登录与默认权限</Typography.Title>
+        <Alert
+          showIcon
+          type="info"
+          title="每位同事使用自己的飞书账号登录"
+          description="开启后，飞书应用可用范围内的新用户首次登录会自动建立独立账号；默认角色只负责初始数据范围，之后可在“用户与权限”中按账号改成指定角色或指定直播间。"
+        />
+        <Form.Item
+          label="允许飞书新用户首次登录自动开户"
+          name="feishu_auto_provision_enabled"
+          valuePropName="checked"
+        >
+          <Switch aria-label="允许飞书新用户首次登录自动开户" />
+        </Form.Item>
+        <Form.Item label="新用户默认角色" name="feishu_auto_provision_role">
+          <Select options={settings.feishu_auto_provision_role_options} style={{ width: 280 }} />
         </Form.Item>
         <Typography.Title level={5}>群机器人（Webhook 方式推荐）</Typography.Title>
         <Form.Item

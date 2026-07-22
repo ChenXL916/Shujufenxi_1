@@ -20,7 +20,7 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.integrations.feishu.oauth_store import FeishuOAuthStore
 from app.main import app
-from app.models.entities import Room, SystemSetting, User
+from app.models.entities import PermissionAuditLog, Role, Room, SystemSetting, User, UserRole
 
 
 def test_signed_session_and_oauth_state_reject_tampering() -> None:
@@ -197,6 +197,7 @@ def test_feishu_callback_binds_an_active_email_invitation(
         invited = User(
             name="受邀用户",
             email="Invited@Example.com",
+            feishu_user_id=f"pending:{uuid4()}",
             role_name="viewer",
             active=True,
         )
@@ -251,6 +252,89 @@ def test_feishu_callback_binds_an_active_email_invitation(
     assert response.headers["location"].startswith("http://testserver/overview?")
     assert len(users) == 1
     assert bound_feishu_user_id == "ou_invited"
+
+
+def test_feishu_callback_auto_provisions_a_separate_default_role_account(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(
+            Role(
+                name="live_manager",
+                role_code="live_manager",
+                role_name="直播主管",
+                description="共享链接默认只读业务角色",
+                all_permissions=False,
+                system_role=True,
+                active=True,
+            )
+        )
+        session.commit()
+    settings = Settings(
+        app_env="test",
+        app_base_url="http://testserver",
+        feishu_app_id="cli_test",
+        feishu_app_secret="app-secret",  # noqa: S106
+        jwt_secret="test-session-secret",  # noqa: S106
+        feishu_auto_provision_enabled=True,
+        feishu_auto_provision_role="live_manager",
+    )
+    grant = FeishuOAuthGrant(
+        identity=FeishuIdentity("ou_colleague", "新同事", None, None),
+        tokens=FeishuTokenBundle(
+            "access-token",
+            7200,
+            "refresh-token",
+            604800,
+            "offline_access",
+        ),
+    )
+
+    async def exchange_authorization(_self: FeishuOAuthClient, _code: str) -> FeishuOAuthGrant:
+        return grant
+
+    def override_db():  # type: ignore[no-untyped-def]
+        with Session(engine) as session:
+            yield session
+
+    monkeypatch.setattr(FeishuOAuthClient, "exchange_authorization", exchange_authorization)
+    monkeypatch.setattr("app.auth.router.load_runtime_settings", lambda _db: settings)
+    app.dependency_overrides[get_db] = override_db
+    client = TestClient(app)
+    state = "expected-state"
+    client.cookies.set("live_ops_oauth_state", SessionCodec(settings).dumps_state(state))
+    try:
+        response = client.get(
+            f"/auth/feishu/callback?code=authorization-code&state={state}",
+            follow_redirects=False,
+        )
+        with Session(engine) as session:
+            user = session.scalar(select(User).where(User.feishu_user_id == "ou_colleague"))
+            assert user is not None
+            role_code = session.scalar(
+                select(Role.role_code)
+                .join(UserRole, UserRole.role_id == Role.id)
+                .where(UserRole.user_id == user.id)
+            )
+            audit = session.scalar(
+                select(PermissionAuditLog).where(
+                    PermissionAuditLog.action == "feishu_user_auto_provisioned"
+                )
+            )
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+    assert response.status_code == 307
+    assert response.headers["location"].startswith("http://testserver/overview?")
+    assert role_code == "live_manager"
+    assert audit is not None
 
 
 def test_room_scope_and_admin_endpoints_are_enforced_server_side() -> None:
