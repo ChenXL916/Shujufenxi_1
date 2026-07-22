@@ -28,3 +28,17 @@ API 启动顺序为 Alembic 迁移 → 指标/班次/角色 seed → fixture 幂
 部署前运行 `make backup`。应用回滚使用上一个镜像标签；数据库迁移默认只前滚。若必须恢复，停止写入服务，按运维手册恢复备份并重新执行 `/ready`、fixture 幂等同步和冒烟测试。
 
 当前开发机没有 Docker CLI，因此最终报告会区分“Compose 静态验证通过”和“容器运行态尚需在 Docker Engine 环境复验”。
+
+## Netlify 前端部署
+
+仓库根目录的 `netlify.toml` 已固定从 `apps/web` 安装依赖和执行 Vite 构建，并发布 `apps/web/dist`。构建过程会生成 `_redirects`，保证 `/overview`、`/alerts` 等 React Router 地址刷新后仍返回 `index.html`，不再出现 Netlify 默认 404。
+
+Netlify 只承载前端。实时飞书同步、数据库、权限和预警任务仍由 FastAPI、PostgreSQL、Redis、Celery Worker/Beat 组成的后端服务承载。后端部署完成后，在 Netlify 的环境变量中设置：
+
+```dotenv
+NETLIFY_BACKEND_ORIGIN=https://api.example.com
+```
+
+该值必须是公开 HTTPS 源站，不能包含路径、账号密码、查询参数或锚点。重新部署后，构建脚本会按顺序生成 `/api/*`、`/auth/*`、`/health`、`/ready` 的同源代理规则，再写入 SPA 回退规则。这样飞书 OAuth 会话 Cookie 和 CSRF 校验仍通过 Netlify 域名工作。
+
+后端生产环境同时需要把 `APP_BASE_URL`、`API_BASE_URL` 和 `FEISHU_REDIRECT_URI` 配置为用户访问的 Netlify HTTPS 域名，把 `CORS_ORIGINS` 限定为该域名。飞书 `App Secret`、机器人密钥和数据库密码只能配置在后端，禁止写入 Netlify 的 `VITE_*` 构建变量。

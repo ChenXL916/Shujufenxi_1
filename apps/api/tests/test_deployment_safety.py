@@ -1,3 +1,8 @@
+import json
+import os
+import shutil
+import subprocess
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -57,3 +62,45 @@ def test_production_compose_requires_authentication_configuration() -> None:
     for service_name in ("api", "celery-worker", "celery-beat"):
         environment = production["services"][service_name]["environment"]
         assert required <= set(environment), f"{service_name} 缺少生产认证配置"
+
+
+def test_netlify_builds_the_vite_app_from_the_monorepo() -> None:
+    config = tomllib.loads((ROOT / "netlify.toml").read_text(encoding="utf-8"))
+    package = json.loads((ROOT / "apps" / "web" / "package.json").read_text(encoding="utf-8"))
+
+    assert config["build"] == {
+        "base": "apps/web",
+        "command": "npm run build",
+        "publish": "dist",
+        "environment": {"NODE_VERSION": "22"},
+    }
+    assert "write-netlify-redirects.mjs" in package["scripts"]["build"]
+
+
+def test_netlify_redirects_proxy_backend_before_spa_fallback(tmp_path: Path) -> None:
+    node = shutil.which("node")
+    assert node is not None
+    output = tmp_path / "_redirects"
+    env = {
+        **os.environ,
+        "NETLIFY_BACKEND_ORIGIN": "https://api.example.com/",
+        "NETLIFY_REDIRECTS_OUTPUT": str(output),
+    }
+
+    subprocess.run(  # noqa: S603 - executable resolved from the trusted test environment
+        [node, "scripts/write-netlify-redirects.mjs"],
+        cwd=ROOT / "apps" / "web",
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    rules = output.read_text(encoding="utf-8").splitlines()
+
+    assert rules[:4] == [
+        "/api/*  https://api.example.com/api/:splat  200",
+        "/auth/*  https://api.example.com/auth/:splat  200",
+        "/health  https://api.example.com/health  200",
+        "/ready  https://api.example.com/ready  200",
+    ]
+    assert rules[-1] == "/*  /index.html  200"

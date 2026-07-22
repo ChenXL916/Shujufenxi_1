@@ -160,3 +160,12 @@
 - `make.cmd verify-production` 退出 0：验证 7 个 Compose 服务、33 张迁移表、生产强密钥/公网 HTTPS/飞书凭据策略、生产启动不导入 fixture 以及 Docker 构建路径。
 - 当前主机没有 Docker CLI，因此本次生产验收为 YAML、路径、安全策略和数据库迁移静态验收；容器实际启动仍属于外部环境验证项。
 - 发布边界检查确认 `.env`、数据库、日志、运行产物和 `fixtures/*.xlsx` 被忽略；仓库只包含 `.env.example` 与匿名测试生成逻辑。
+
+## 2026-07-22 Netlify 404 修复验收
+
+- 根因确认：Netlify 跟随的 GitHub 默认分支 `main` 只有初始 README，因此既没有可发布的前端产物，也没有单页应用路由回退规则。
+- 部署配置回归测试 6/6 通过；根目录 `netlify.toml` 明确使用 `apps/web` 构建并发布 `dist`。
+- 两种生产构建均通过：未配置后端时生成 SPA 回退；配置 `NETLIFY_BACKEND_ORIGIN=https://api.example.com` 时先生成 `/api/*`、`/auth/*`、`/health`、`/ready` 的 HTTPS 代理，再生成 SPA 回退。
+- `make.cmd check` 退出 0：176 个后端测试、17 个前端测试文件/58 个单测、生产构建与 6 个 Playwright E2E 全部通过；后端覆盖率 86.42%，高于 85% 门槛。
+- `make.cmd verify-production` 退出 0：7 个 Compose 服务、33 张迁移表、强密钥策略、生产无夹具写入与 Docker 构建路径验证通过。
+- 当前主机没有 Docker CLI，因此容器运行态仍未在本机验证；Netlify 只托管前端，要在线读取飞书实时数据还必须部署 API、数据库、Redis、Worker/Beat，并配置 `NETLIFY_BACKEND_ORIGIN`。

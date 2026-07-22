@@ -288,6 +288,18 @@
 - [ ] 应用当前不持久化 provider 原始响应正文；本次发送返回的原始 JSON 未单独归档，现有证据不声称包含正式卡 `message_id`。如业务要求原始回执长期可追溯，应先增加去敏持久化再做下一次受控发送，不为补证重复打扰业务群。
 - [x] 已完成真实表名归属回算、富文本自动检查清洗和晚到实绩预警自动恢复。
 
+## 阶段 19：Netlify 404 与生产路由修复
+
+- [x] 确认 GitHub 默认分支 `main` 只有初始 README，Netlify 未获得完整应用源码。
+- [x] 新增根目录 `netlify.toml`，固定 `apps/web` 为构建目录、`dist` 为发布目录，并锁定 Node.js 22。
+- [x] 构建时生成 SPA 回退规则，`/overview`、`/alerts` 等前端路由刷新不再命中 Netlify 默认 404。
+- [x] 支持通过 `NETLIFY_BACKEND_ORIGIN` 生成 API、飞书 OAuth、健康检查的 HTTPS 同源代理规则，且代理优先于 SPA 回退。
+- [x] 新增部署配置回归测试；定向测试 6/6 通过，无后端与 HTTPS 后端两种生产构建均通过。
+- [x] 修复 Windows 下 Playwright 完成后偶发无法退出的问题；独立 E2E 启停器会回收本轮启动的 Vite 与 Uvicorn 子进程。
+- [x] 修复后 `make.cmd check` 退出 0：176 个后端测试、17 个前端测试文件/58 个单测、生产构建与 6 个 Playwright E2E 全部通过，后端覆盖率 86.42%。
+- [x] 修复后 `make.cmd verify-production` 退出 0：7 服务、33 表、迁移、强密钥、生产无夹具写入及 Docker 构建路径均通过静态验收。
+- [ ] 实时数据上线仍需一个可公开访问的生产后端源站，并在 Netlify 设置 `NETLIFY_BACKEND_ORIGIN`；前端发布不会替代 API、数据库和定时同步服务。
+
 ## 环境限制
 
 - 当前机器未安装 Docker CLI，Compose 运行态将在具备 Docker Desktop/Engine 的环境补充验证。
