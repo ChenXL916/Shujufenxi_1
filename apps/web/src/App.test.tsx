@@ -3,7 +3,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, vi } from 'vitest'
 
-const { getCurrentUser } = vi.hoisted(() => ({ getCurrentUser: vi.fn() }))
+const { getCurrentUser, loginWithPassword } = vi.hoisted(() => ({
+  getCurrentUser: vi.fn(),
+  loginWithPassword: vi.fn().mockResolvedValue({ authenticated: true, redirect_url: '/overview' }),
+}))
 
 const administrator = {
   id: 'admin-1',
@@ -17,6 +20,8 @@ const administrator = {
 
 vi.mock('@/api/client', () => ({
   getCurrentUser,
+  loginWithPassword,
+  logoutCurrentUser: vi.fn().mockResolvedValue(undefined),
   getFeishuStatus: vi.fn().mockResolvedValue({
     realtime_ready: false,
     user_authorized: false,
@@ -52,6 +57,7 @@ import App from './App'
 beforeEach(() => {
   getCurrentUser.mockReset()
   getCurrentUser.mockResolvedValue(administrator)
+  loginWithPassword.mockClear()
 })
 
 test('renders the Chinese dashboard shell and navigation', async () => {
@@ -155,7 +161,7 @@ test('普通业务账号只显示被授权的分析和预警入口', async () =>
   expect(screen.queryByRole('link', { name: '打开系统设置' })).not.toBeInTheDocument()
 })
 
-test('未登录访问共享链接时显示飞书登录入口', async () => {
+test('未登录访问共享链接时可用网页账号登录并保留飞书入口', async () => {
   getCurrentUser.mockRejectedValueOnce(new Error('unauthorized'))
   render(
     <QueryClientProvider
@@ -167,6 +173,19 @@ test('未登录访问共享链接时显示飞书登录入口', async () => {
     </QueryClientProvider>,
   )
 
-  expect(await screen.findByText('请先使用飞书登录')).toBeInTheDocument()
+  expect(await screen.findByText('使用管理员分配的网页账号登录')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '使用飞书登录' })).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('登录名'), { target: { value: 'room.viewer' } })
+  fireEvent.change(screen.getByLabelText('密码'), {
+    target: { value: 'A-secure-password-2026' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: '登录并查看数据' }))
+
+  await waitFor(() =>
+    expect(loginWithPassword.mock.calls[0]?.[0]).toEqual({
+      username: 'room.viewer',
+      password: 'A-secure-password-2026',
+    }),
+  )
+  expect(await screen.findByText('直播运营驾驶舱')).toBeInTheDocument()
 })

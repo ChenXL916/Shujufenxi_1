@@ -1819,6 +1819,52 @@ a:focus-visible,
   }
 }
 
+.login-screen {
+  display: grid;
+  width: 100%;
+  min-height: 100dvh;
+  padding: 32px 16px;
+  place-items: center;
+  background:
+    radial-gradient(circle at 15% 15%, rgb(234 120 54 / 12%), transparent 32%), var(--color-bg-root);
+}
+
+.login-card {
+  width: min(440px, 100%);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-card);
+}
+
+.login-stack {
+  width: 100%;
+}
+
+.login-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.login-heading .ant-typography {
+  margin: 0;
+}
+
+.login-brand-mark {
+  display: inline-grid;
+  width: 48px;
+  height: 48px;
+  color: var(--color-accent-orange);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-accent-orange) 12%, white);
+  font-size: 24px;
+  place-items: center;
+}
+
+.login-help {
+  margin: 0 !important;
+  text-align: center;
+}
+
 /* Dashboard UI refinement: grouped filters and progressive chart controls. */
 .filter-heading,
 .filter-heading-copy,

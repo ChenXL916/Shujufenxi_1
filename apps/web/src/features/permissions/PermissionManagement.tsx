@@ -1,4 +1,9 @@
-import { EditOutlined, PlusOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import {
+  EditOutlined,
+  KeyOutlined,
+  PlusOutlined,
+  SafetyCertificateOutlined,
+} from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
@@ -21,6 +26,7 @@ import {
   createFeishuPermissionGroup,
   createPermissionUser,
   getPermissionOverview,
+  resetPermissionUserPassword,
   updateFeishuPermissionGroup,
   updatePermissionRole,
   updatePermissionUserAccess,
@@ -39,10 +45,16 @@ type UserFormValues = {
   username: string
   name: string
   email: string
+  password: string
   role_codes: string[]
   room_scope_mode: 'role' | 'custom'
   room_ids: string[]
   active: boolean
+}
+
+type PasswordFormValues = {
+  password: string
+  password_confirmation: string
 }
 
 type RoleFormValues = {
@@ -82,6 +94,7 @@ export function PermissionManagement() {
     queryFn: getPermissionOverview,
   })
   const [userEditor, setUserEditor] = useState<PermissionUser | 'new' | null>(null)
+  const [passwordEditor, setPasswordEditor] = useState<PermissionUser | null>(null)
   const [roleEditor, setRoleEditor] = useState<PermissionRole | null>(null)
   const [resourceEditor, setResourceEditor] = useState<RoomResource | null>(null)
   const [groupEditor, setGroupEditor] = useState<FeishuPermissionGroup | 'new' | null>(null)
@@ -96,7 +109,8 @@ export function PermissionManagement() {
         return createPermissionUser({
           username: values.username,
           name: values.name,
-          email: values.email,
+          email: values.email.trim() || undefined,
+          password: values.password,
           role_codes: values.role_codes,
           room_ids: roomIds,
           active: values.active,
@@ -115,6 +129,18 @@ export function PermissionManagement() {
       message.success('用户角色和数据范围已保存，权限立即按服务端配置生效')
     },
     onError: () => message.error('用户权限保存失败，请检查角色和直播间配置'),
+  })
+  const savePassword = useMutation({
+    mutationFn: async (values: PasswordFormValues) => {
+      if (!passwordEditor) throw new Error('未选择用户')
+      return resetPermissionUserPassword(passwordEditor.id, values.password)
+    },
+    onSuccess: async () => {
+      setPasswordEditor(null)
+      await refresh()
+      message.success('网页登录密码已重置，旧密码立即失效')
+    },
+    onError: () => message.error('密码重置失败，请确认密码长度和账号状态'),
   })
   const saveRole = useMutation({
     mutationFn: async (values: RoleFormValues) => {
@@ -167,7 +193,9 @@ export function PermissionManagement() {
     {
       key: 'users',
       label: '用户管理',
-      children: <UsersPanel data={data} onEdit={setUserEditor} />,
+      children: (
+        <UsersPanel data={data} onEdit={setUserEditor} onResetPassword={setPasswordEditor} />
+      ),
     },
     {
       key: 'roles',
@@ -198,8 +226,8 @@ export function PermissionManagement() {
       <Alert
         showIcon
         type="success"
-        title="同事先用飞书登录一次，再按账号分配权限"
-        description="开启自动开户后，新同事首次登录会出现在下方用户列表。你可以给每个人分别设置直播主管、单直播间 PM、受限查看者，或用个人自定义范围精确选择直播间。"
+        title="管理员创建网页账号，同事无需飞书应用权限"
+        description="新增用户时设置登录名和初始密码，再分配角色与直播间。对已有飞书用户也可以重置网页密码，启用两种登录方式；两种方式进入后使用完全相同的服务端权限。"
       />
       <Card size="small">
         <Space wrap size={[8, 8]}>
@@ -216,6 +244,12 @@ export function PermissionManagement() {
         saving={saveUser.isPending}
         onCancel={() => setUserEditor(null)}
         onSave={(values) => saveUser.mutate(values)}
+      />
+      <PasswordResetModal
+        value={passwordEditor}
+        saving={savePassword.isPending}
+        onCancel={() => setPasswordEditor(null)}
+        onSave={(values) => savePassword.mutate(values)}
       />
       <RoleEditorModal
         value={roleEditor}
@@ -244,9 +278,11 @@ export function PermissionManagement() {
 function UsersPanel({
   data,
   onEdit,
+  onResetPassword,
 }: {
   data: PermissionOverview
   onEdit: (value: PermissionUser | 'new') => void
+  onResetPassword: (value: PermissionUser) => void
 }) {
   return (
     <Space orientation="vertical" size={12} className="page-stack">
@@ -306,12 +342,15 @@ function UsersPanel({
             ),
           },
           {
-            title: '飞书登录',
-            width: 130,
+            title: '登录方式',
+            width: 180,
             render: (_, item) => (
               <Space orientation="vertical" size={0}>
+                <Tag color={item.password_login_enabled ? 'blue' : 'default'}>
+                  {item.password_login_enabled ? '网页账号已启用' : '网页账号未启用'}
+                </Tag>
                 <Tag color={item.feishu_bound ? 'green' : 'gold'}>
-                  {item.feishu_bound ? '已绑定' : '待首次登录'}
+                  {item.feishu_bound ? '飞书已绑定' : '飞书未绑定'}
                 </Tag>
                 {item.last_login_at ? (
                   <Typography.Text type="secondary">
@@ -331,11 +370,21 @@ function UsersPanel({
           {
             title: '操作',
             fixed: 'right',
-            width: 110,
+            width: 210,
             render: (_, item) => (
-              <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
-                配置
-              </Button>
+              <Space size={4}>
+                <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
+                  权限
+                </Button>
+                <Button
+                  size="small"
+                  icon={<KeyOutlined />}
+                  disabled={!item.username}
+                  onClick={() => onResetPassword(item)}
+                >
+                  重置密码
+                </Button>
+              </Space>
             ),
           },
         ]}
@@ -557,6 +606,7 @@ function UserEditorModal({
           username: current?.username ?? '',
           name: current?.name ?? '',
           email: current?.email ?? '',
+          password: '',
           role_codes: current?.role_codes ?? [],
           room_scope_mode: current?.room_scope_mode ?? 'role',
           room_ids: current?.room_scope_mode === 'custom' ? (current.room_ids ?? []) : [],
@@ -573,8 +623,20 @@ function UserEditorModal({
             <Form.Item name="name" label="姓名" rules={[{ required: true }]}>
               <Input />
             </Form.Item>
-            <Form.Item name="email" label="邮箱" rules={[{ required: true, type: 'email' }]}>
+            <Form.Item name="email" label="邮箱（可选）" rules={[{ type: 'email' }]}>
               <Input />
+            </Form.Item>
+            <Form.Item
+              name="password"
+              label="初始密码"
+              extra="至少 10 位；系统只保存单向哈希，保存后不会回显。"
+              rules={[
+                { required: true, message: '请输入初始密码' },
+                { min: 10, message: '密码至少 10 位' },
+                { max: 128, message: '密码最多 128 位' },
+              ]}
+            >
+              <Input.Password autoComplete="new-password" />
             </Form.Item>
           </>
         ) : null}
@@ -614,6 +676,73 @@ function UserEditorModal({
         ) : null}
         <Form.Item name="active" label="账号启用" valuePropName="checked">
           <Switch />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
+
+function PasswordResetModal({
+  value,
+  saving,
+  onCancel,
+  onSave,
+}: {
+  value: PermissionUser | null
+  saving: boolean
+  onCancel: () => void
+  onSave: (values: PasswordFormValues) => void
+}) {
+  const [form] = Form.useForm<PasswordFormValues>()
+  return (
+    <Modal
+      open={value !== null}
+      title={`重置网页密码 · ${value?.name ?? ''}`}
+      okText="确认重置"
+      cancelText="取消"
+      confirmLoading={saving}
+      destroyOnHidden
+      onCancel={onCancel}
+      onOk={() => void form.submit()}
+      afterOpenChange={(open) => {
+        if (open) form.resetFields()
+      }}
+    >
+      <Alert
+        type="warning"
+        showIcon
+        title="保存后旧密码立即失效"
+        description="请通过安全渠道把新密码交给本人，不要把密码写入群公告或审计备注。"
+        style={{ marginBottom: 16 }}
+      />
+      <Form form={form} layout="vertical" onFinish={onSave}>
+        <Form.Item
+          name="password"
+          label="新密码"
+          rules={[
+            { required: true, message: '请输入新密码' },
+            { min: 10, message: '密码至少 10 位' },
+            { max: 128, message: '密码最多 128 位' },
+          ]}
+        >
+          <Input.Password autoComplete="new-password" />
+        </Form.Item>
+        <Form.Item
+          name="password_confirmation"
+          label="确认新密码"
+          dependencies={['password']}
+          rules={[
+            { required: true, message: '请再次输入新密码' },
+            ({ getFieldValue }) => ({
+              validator(_, input) {
+                return !input || getFieldValue('password') === input
+                  ? Promise.resolve()
+                  : Promise.reject(new Error('两次输入的密码不一致'))
+              },
+            }),
+          ]}
+        >
+          <Input.Password autoComplete="new-password" />
         </Form.Item>
       </Form>
     </Modal>

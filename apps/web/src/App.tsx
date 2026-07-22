@@ -12,6 +12,7 @@ import {
   DoubleLeftOutlined,
   DoubleRightOutlined,
   LineChartOutlined,
+  LogoutOutlined,
   MenuOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
@@ -27,10 +28,11 @@ import { message } from 'antd'
 import { lazy, Suspense, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AccessibilityEnhancer } from '@/components/AccessibilityEnhancer'
+import { LoginScreen } from '@/components/LoginScreen'
 import { LoadingPanel } from '@/components/StatePanel'
 import { StatusBadge } from '@/components/StatusBadge'
 import { restoreFocusAfterOverlayClose } from '@/utils/focus'
-import { getCurrentUser, getFeishuStatus, syncFeishuNow } from '@/api/client'
+import { getCurrentUser, getFeishuStatus, logoutCurrentUser, syncFeishuNow } from '@/api/client'
 
 const OverviewPage = lazy(() =>
   import('@/pages/OverviewPage').then((module) => ({ default: module.OverviewPage })),
@@ -219,6 +221,14 @@ export default function App() {
     refetchInterval: 60_000,
     enabled: currentUser.isSuccess,
   })
+  const logout = useMutation({
+    mutationFn: logoutCurrentUser,
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: ['current-user'] })
+      await currentUser.refetch()
+    },
+    onError: () => message.error('退出失败，请稍后重试'),
+  })
   const sync = useMutation({
     mutationFn: syncFeishuNow,
     onSuccess: async () => {
@@ -292,15 +302,10 @@ export default function App() {
   if (currentUser.isError || !currentUser.data) {
     return (
       <Layout className="app-shell" data-theme="index-warm-bi">
-        <Result
-          status="403"
-          title="请先使用飞书登录"
-          subTitle="每位同事都需要使用自己的飞书账号登录，系统会按账号分别应用角色和直播间权限。"
-          extra={
-            <Button type="primary" onClick={() => window.location.assign('/auth/feishu/login')}>
-              使用飞书登录
-            </Button>
-          }
+        <LoginScreen
+          onAuthenticated={async () => {
+            await currentUser.refetch()
+          }}
         />
       </Layout>
     )
@@ -448,6 +453,15 @@ export default function App() {
             <Tooltip title={`${userName} · ${userRole}`}>
               <Avatar className="user-avatar">{userName.slice(0, 1)}</Avatar>
             </Tooltip>
+            <Tooltip title="退出登录">
+              <Button
+                type="text"
+                icon={<LogoutOutlined />}
+                aria-label="退出登录"
+                loading={logout.isPending}
+                onClick={() => logout.mutate()}
+              />
+            </Tooltip>
           </div>
         </Header>
         <Content className="app-content">
@@ -531,6 +545,14 @@ export default function App() {
             <span>{userRole}</span>
           </div>
         </div>
+        <Button
+          block
+          icon={<LogoutOutlined />}
+          loading={logout.isPending}
+          onClick={() => logout.mutate()}
+        >
+          退出登录
+        </Button>
       </Drawer>
     </Layout>
   )

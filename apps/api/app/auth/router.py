@@ -6,14 +6,18 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel, Field, SecretStr, field_validator
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import Access, SyncAccess, require_csrf
+from app.auth.login_limiter import login_attempt_limiter
 from app.auth.oauth import FeishuOAuthClient
+from app.auth.passwords import hash_password, verify_password
 from app.auth.session import SessionCodec
+from app.core.config import Settings
 from app.core.runtime_settings import load_runtime_settings
 from app.db.base import utc_now
 from app.db.session import get_db
@@ -21,10 +25,104 @@ from app.integrations.feishu.client import FeishuError
 from app.integrations.feishu.oauth_store import FeishuOAuthStore, FeishuReauthorizationRequired
 from app.models.entities import RoomResource, SourceConfig, User
 from app.services.feishu_sync_service import sync_configured_sources
-from app.services.permission_service import provision_feishu_user, user_has_permission
+from app.services.permission_service import (
+    provision_feishu_user,
+    record_permission_audit,
+    user_has_permission,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 DbSession = Annotated[Session, Depends(get_db)]
+_DUMMY_PASSWORD_HASH = hash_password("not-a-real-account-password")
+
+
+class PasswordLoginRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=120)
+    password: SecretStr = Field(min_length=10, max_length=128)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 2:
+            raise ValueError("登录名至少 2 位")
+        return normalized
+
+
+def _set_session_cookies(
+    response: Response,
+    *,
+    settings: Settings,
+    user_id: object,
+    auth_mode: str,
+) -> None:
+    csrf = secrets.token_urlsafe(32)
+    session_cookie = SessionCodec(settings).dumps(
+        {"user_id": str(user_id), "csrf": csrf, "auth_mode": auth_mode}
+    )
+    response.set_cookie(
+        "live_ops_session",
+        session_cookie,
+        max_age=SessionCodec.max_age_seconds,
+        httponly=True,
+        secure=settings.app_env == "production",
+        samesite="lax",
+    )
+    response.set_cookie(
+        "live_ops_csrf",
+        csrf,
+        max_age=SessionCodec.max_age_seconds,
+        httponly=False,
+        secure=settings.app_env == "production",
+        samesite="lax",
+    )
+
+
+@router.post("/password/login")
+def password_login(payload: PasswordLoginRequest, request: Request, db: DbSession) -> Response:
+    settings = load_runtime_settings(db)
+    normalized_username = payload.username.strip().casefold()
+    ip_address = request.client.host if request.client else "unknown"
+    if login_attempt_limiter.is_blocked(settings, ip_address, normalized_username):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="登录尝试过多，请 5 分钟后重试",
+            headers={"Retry-After": str(login_attempt_limiter.window_seconds)},
+        )
+    user = db.scalar(
+        select(User).where(func.lower(func.trim(User.username)) == normalized_username)
+    )
+    supplied_password = payload.password.get_secret_value()
+    password_valid = verify_password(
+        supplied_password,
+        user.password_hash if user is not None else _DUMMY_PASSWORD_HASH,
+    )
+    account_available = bool(user and user.active and user.status == "active")
+    if not password_valid or not account_available:
+        login_attempt_limiter.record_failure(settings, ip_address, normalized_username)
+        raise HTTPException(status_code=401, detail="账号或密码错误")
+    assert user is not None
+    login_attempt_limiter.clear(settings, ip_address, normalized_username)
+    user.last_login_at = utc_now()
+    record_permission_audit(
+        db,
+        actor_user_id=user.id,
+        action="password_login_succeeded",
+        target_type="user",
+        target_id=str(user.id),
+        target_user_id=user.id,
+        after_value={"auth_mode": "password"},
+        ip_address=ip_address,
+    )
+    db.commit()
+    response = JSONResponse({"authenticated": True, "redirect_url": "/overview"})
+    _set_session_cookies(
+        response,
+        settings=settings,
+        user_id=user.id,
+        auth_mode="password",
+    )
+    return response
 
 
 @router.get("/feishu/login")
@@ -127,26 +225,14 @@ async def feishu_callback(
         except Exception:
             # Identity login still succeeds; developers can inspect the source error.
             sync_result = "failed"
-    csrf = secrets.token_urlsafe(32)
-    session_cookie = SessionCodec(settings).dumps({"user_id": str(user.id), "csrf": csrf})
     response = RedirectResponse(
         f"{settings.app_base_url}/overview?{urlencode({'feishu_sync': sync_result})}"
     )
-    response.set_cookie(
-        "live_ops_session",
-        session_cookie,
-        max_age=SessionCodec.max_age_seconds,
-        httponly=True,
-        secure=settings.app_env == "production",
-        samesite="lax",
-    )
-    response.set_cookie(
-        "live_ops_csrf",
-        csrf,
-        max_age=SessionCodec.max_age_seconds,
-        httponly=False,
-        secure=settings.app_env == "production",
-        samesite="lax",
+    _set_session_cookies(
+        response,
+        settings=settings,
+        user_id=user.id,
+        auth_mode="feishu_oauth",
     )
     response.delete_cookie("live_ops_oauth_state")
     return response
@@ -276,6 +362,6 @@ def current_user(access: Access, db: DbSession) -> dict[str, object]:
         "id": str(user.id),
         "name": user.name,
         "avatar_url": user.avatar_url,
-        "auth_mode": "feishu_oauth",
+        "auth_mode": access.auth_mode,
         **shared,
     }

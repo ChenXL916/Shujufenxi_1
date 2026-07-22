@@ -8,19 +8,181 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.auth.dependencies import AccessScope, get_access_scope
+from app.auth.login_limiter import LoginAttemptLimiter, login_attempt_limiter
 from app.auth.oauth import (
     FeishuIdentity,
     FeishuOAuthClient,
     FeishuOAuthGrant,
     FeishuTokenBundle,
 )
+from app.auth.passwords import hash_password, verify_password
 from app.auth.session import SessionCodec
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.integrations.feishu.oauth_store import FeishuOAuthStore
 from app.main import app
 from app.models.entities import PermissionAuditLog, Role, Room, SystemSetting, User, UserRole
+
+
+def test_password_hash_is_salted_and_verifiable() -> None:
+    first = hash_password("correct horse battery staple")
+    second = hash_password("correct horse battery staple")
+
+    assert first != second
+    assert "correct horse" not in first
+    assert verify_password("correct horse battery staple", first)
+    assert not verify_password("wrong password", first)
+    assert not verify_password("correct horse battery staple", "invalid")
+
+
+def test_password_login_issues_session_and_uses_generic_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        user = User(
+            feishu_user_id=None,
+            username="web.viewer",
+            name="网页查看账号",
+            email=None,
+            password_hash=hash_password("A-secure-password-2026"),
+            role_name="viewer",
+            status="active",
+            room_scope_mode="role",
+            active=True,
+        )
+        disabled = User(
+            feishu_user_id=None,
+            username="disabled.viewer",
+            name="停用账号",
+            email=None,
+            password_hash=hash_password("A-secure-password-2026"),
+            role_name="viewer",
+            status="disabled",
+            room_scope_mode="role",
+            active=False,
+        )
+        session.add_all([user, disabled])
+        session.commit()
+        user_id = user.id
+    settings = Settings(
+        app_env="test",
+        dev_auth_bypass=False,
+        jwt_secret="password-login-test-secret",  # noqa: S106
+        redis_url="redis://127.0.0.1:1/0",
+    )
+
+    def override_db():  # type: ignore[no-untyped-def]
+        with Session(engine) as session:
+            yield session
+
+    def unavailable_redis(_self: LoginAttemptLimiter, _settings: Settings):
+        from redis.exceptions import RedisError
+
+        raise RedisError("test redis unavailable")
+
+    monkeypatch.setattr(LoginAttemptLimiter, "_redis", unavailable_redis)
+    monkeypatch.setattr("app.auth.router.load_runtime_settings", lambda _db: settings)
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_settings] = lambda: settings
+    login_attempt_limiter.reset_for_testing()
+    client = TestClient(app)
+    try:
+        unknown = client.post(
+            "/auth/password/login",
+            json={"username": "unknown", "password": "A-secure-password-2026"},
+        )
+        wrong = client.post(
+            "/auth/password/login",
+            json={"username": "web.viewer", "password": "A-secure-password-wrong"},
+        )
+        disabled_response = client.post(
+            "/auth/password/login",
+            json={"username": "disabled.viewer", "password": "A-secure-password-2026"},
+        )
+        success = client.post(
+            "/auth/password/login",
+            json={"username": " WEB.VIEWER ", "password": "A-secure-password-2026"},
+        )
+        me = client.get("/auth/me")
+        with Session(engine) as session:
+            audit = session.scalar(
+                select(PermissionAuditLog).where(
+                    PermissionAuditLog.action == "password_login_succeeded"
+                )
+            )
+            stored_user = session.get(User, user_id)
+            assert stored_user is not None
+            last_login_at = stored_user.last_login_at
+    finally:
+        login_attempt_limiter.reset_for_testing()
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+    assert unknown.status_code == 401
+    assert wrong.status_code == 401
+    assert disabled_response.status_code == 401
+    assert {
+        unknown.json()["detail"],
+        wrong.json()["detail"],
+        disabled_response.json()["detail"],
+    } == {"账号或密码错误"}
+    assert success.status_code == 200
+    assert success.json() == {"authenticated": True, "redirect_url": "/overview"}
+    assert "HttpOnly" in success.headers["set-cookie"]
+    assert me.status_code == 200
+    assert me.json()["auth_mode"] == "password"
+    assert me.json()["name"] == "网页查看账号"
+    assert last_login_at is not None
+    assert audit is not None
+    assert audit.after_value == {"auth_mode": "password"}
+
+
+def test_password_login_rate_limits_repeated_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    settings = Settings(
+        app_env="test",
+        jwt_secret="password-rate-limit-test-secret",  # noqa: S106
+        redis_url="redis://127.0.0.1:1/0",
+    )
+
+    def override_db():  # type: ignore[no-untyped-def]
+        with Session(engine) as session:
+            yield session
+
+    def unavailable_redis(_self: LoginAttemptLimiter, _settings: Settings):
+        from redis.exceptions import RedisError
+
+        raise RedisError("test redis unavailable")
+
+    monkeypatch.setattr(LoginAttemptLimiter, "_redis", unavailable_redis)
+    monkeypatch.setattr("app.auth.router.load_runtime_settings", lambda _db: settings)
+    app.dependency_overrides[get_db] = override_db
+    login_attempt_limiter.reset_for_testing()
+    client = TestClient(app)
+    payload = {"username": "limited.user", "password": "A-secure-password-wrong"}
+    try:
+        failures = [client.post("/auth/password/login", json=payload) for _ in range(5)]
+        blocked = client.post("/auth/password/login", json=payload)
+    finally:
+        login_attempt_limiter.reset_for_testing()
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+    assert all(response.status_code == 401 for response in failures)
+    assert blocked.status_code == 429
+    assert blocked.headers["retry-after"] == "300"
 
 
 def test_signed_session_and_oauth_state_reject_tampering() -> None:

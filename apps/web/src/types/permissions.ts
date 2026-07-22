@@ -11,6 +11,7 @@ export interface PermissionUser {
   room_names: string[]
   scope_label: string
   feishu_bound: boolean
+  password_login_enabled: boolean
   last_login_at: string | null
 }
 
@@ -65,6 +66,7 @@ export interface PermissionUserInput {
   username?: string
   name?: string
   email?: string
+  password?: string
   role_codes: string[]
   room_ids: string[] | null
   active: boolean

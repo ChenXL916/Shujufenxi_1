@@ -58,6 +58,7 @@ vi.mock('@/api/client', () => ({
         room_names: ['Mistine-水散粉'],
         scope_label: 'Mistine-水散粉',
         feishu_bound: false,
+        password_login_enabled: true,
         last_login_at: null,
       },
     ],
@@ -93,6 +94,7 @@ vi.mock('@/api/client', () => ({
     feishu_groups: [],
   }),
   createPermissionUser: vi.fn(),
+  resetPermissionUserPassword: vi.fn(),
   updatePermissionUserAccess: vi.fn(),
   updatePermissionRole: vi.fn(),
   updateRoomResource: vi.fn(),
@@ -171,6 +173,12 @@ test('用户与权限页展示五角色、权限矩阵、直播间和飞书群�
   expect(screen.getByRole('tab', { name: '角色权限矩阵' })).toBeInTheDocument()
   expect(screen.getByRole('tab', { name: '直播间权限' })).toBeInTheDocument()
   expect(screen.getByRole('tab', { name: '飞书群范围' })).toBeInTheDocument()
+  expect(screen.getByText('网页账号已启用')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /重置密码/ })).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: /新增用户/ }))
+  expect(await screen.findByLabelText('初始密码')).toHaveAttribute('type', 'password')
+  fireEvent.click(screen.getByRole('button', { name: /取\s*消/ }))
 
   fireEvent.click(screen.getByRole('tab', { name: '角色权限矩阵' }))
   expect(await screen.findByText('开发者/超级管理员')).toBeInTheDocument()

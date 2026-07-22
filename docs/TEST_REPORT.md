@@ -221,3 +221,15 @@
 - 最终生产验收：`make.cmd verify-production` 退出码 0；7 个服务、33 张表、迁移、强密钥、生产无夹具写入和 Docker 构建路径均有效。本机无 Docker CLI，容器部分为等价 YAML、路径和安全静态校验。
 - Netlify 发布后浏览器验收：根链接 HTTP 200；无 Cookie 会话显示飞书登录提示和按钮，页面无 JavaScript 异常。控制台仅记录未登录探测 `/auth/me` 的预期 HTTP 401。
 - 公网权限验收：通过 Netlify 同源代理模拟 `live_manager` 会话，`/auth/me` 与筛选接口 HTTP 200，角色范围和筛选均包含 3 个直播间；`can_manage_permissions=false`，权限总览 HTTP 403。
+
+## 2026-07-22 阶段 24：网页账号密码登录与分级访问
+
+- 认证实现：新增网页账号密码登录，使用随机 16-byte 盐的 scrypt 单向哈希；密码和哈希不进入 API 响应或审计内容。错误账号、错误密码和停用账号统一返回 HTTP 401“账号或密码错误”。
+- 会话安全：登录成功签发原有 8 小时签名 `HttpOnly` 会话 Cookie 和独立 CSRF Cookie；生产环境继续启用 `Secure`、`SameSite=Lax`。`/auth/me` 明确返回 `auth_mode=password`。
+- 暴力破解防护：相同来源和登录名 5 次失败后返回 HTTP 429 与 `Retry-After: 300`；生产 Redis 提供共享计数，依赖不可用时退化为进程内计数。
+- 权限管理：开发者可创建包含登录名、初始密码、角色及直播间范围的网页账号，并可对已有账号重置密码；列表只返回 `password_login_enabled` 布尔状态。普通账号仍无法调用权限管理接口。
+- 定向后端：`test_auth_permissions.py` 与 `test_rbac_data_scope.py` 共 13 项通过，覆盖随机盐哈希、正确/错误/停用登录、限流、密码会话、创建/重置、审计与秘密不回显。
+- 定向前端：`App.test.tsx` 与 `AdminPage.test.tsx` 共 8 项通过，覆盖共享链接登录表单、账号提交、飞书备用入口、初始密码字段和网页登录状态。
+- 完整门禁：`make.cmd check` 退出 0；182 个后端测试全通过，领域与服务覆盖率 86.36%；17 个前端测试文件/63 个单测全通过；Vite 生产构建 22 个 JS Chunk 均不超过 650 KiB；6 个 Chromium E2E 全通过。
+- 生产静态验收：`make.cmd verify-production` 退出 0，验证 7 个服务、33 张迁移表、生产强密钥、关闭开发旁路、无 fixture 写入及 Docker 构建路径。本机没有 Docker CLI，容器运行态仍为等价静态验收。
+- 数据安全：部署前已在线备份生产 SQLite 到 `backups/live_ops_20260722T101626Z.sqlite3`；自动测试没有调用真实飞书消息发送接口，也未修改直播经营事实。

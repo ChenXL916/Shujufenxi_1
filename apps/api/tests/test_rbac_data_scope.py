@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.auth.passwords import verify_password
 from app.auth.session import SessionCodec
 from app.core.config import Settings, get_settings
 from app.db.base import Base
@@ -249,3 +250,83 @@ def test_only_developer_can_change_user_scope_and_change_is_audited() -> None:
     assert ordinary_forbidden.json()["detail"] == "权限不足"
     assert audit_count == 1
     assert forbidden.status_code == 403
+
+
+def test_developer_creates_web_account_and_resets_password_without_exposing_hash() -> None:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        rooms = [_room("Mistine-水散粉"), _room("柏瑞美-妆前乳"), _room("柏瑞美-散粉")]
+        session.add_all(rooms)
+        session.commit()
+        seed_permission_reference_data(session, "developer_test@example.local")
+        developer = session.scalar(select(User).where(User.username == "developer_test"))
+        assert developer is not None
+        developer_id = developer.id
+    settings = Settings(
+        app_env="test",
+        dev_auth_bypass=False,
+        jwt_secret="web-account-admin-test-secret",  # noqa: S106
+    )
+
+    def override_db() -> Generator[Session, None, None]:
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_settings] = lambda: settings
+    client = TestClient(app)
+    client.cookies.set(
+        "live_ops_session",
+        SessionCodec(settings).dumps({"user_id": str(developer_id), "csrf": "csrf-account-admin"}),
+    )
+    client.cookies.set("live_ops_csrf", "csrf-account-admin")
+    headers = {"X-CSRF-Token": "csrf-account-admin"}
+    try:
+        created = client.post(
+            "/api/v1/admin/permissions/users",
+            headers=headers,
+            json={
+                "username": " Room.Viewer ",
+                "name": "网页受限查看者",
+                "email": None,
+                "password": "Initial-password-2026",
+                "role_codes": ["viewer"],
+                "room_ids": [],
+                "active": True,
+            },
+        )
+        user_id = created.json()["id"]
+        reset = client.put(
+            f"/api/v1/admin/permissions/users/{user_id}/password",
+            headers=headers,
+            json={"password": "Replacement-password-2026"},
+        )
+        with Session(engine) as session:
+            stored = session.get(User, UUID(user_id))
+            assert stored is not None
+            stored_hash = stored.password_hash
+            audits = list(
+                session.scalars(
+                    select(PermissionAuditLog).where(PermissionAuditLog.target_user_id == stored.id)
+                )
+            )
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+    assert created.status_code == 201
+    assert created.json()["username"] == "room.viewer"
+    assert created.json()["email"] is None
+    assert created.json()["password_login_enabled"] is True
+    assert "password" not in created.json()
+    assert "password_hash" not in created.json()
+    assert reset.status_code == 200
+    assert stored_hash is not None
+    assert not verify_password("Initial-password-2026", stored_hash)
+    assert verify_password("Replacement-password-2026", stored_hash)
+    assert {audit.action for audit in audits} == {"user_created", "user_password_reset"}

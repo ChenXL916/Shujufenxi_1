@@ -4,12 +4,13 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from pydantic import BaseModel, Field, SecretStr, field_validator
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AdminAccess
+from app.auth.passwords import hash_password
 from app.db.session import get_db
 from app.models.entities import (
     FeishuGroup,
@@ -37,16 +38,42 @@ DbSession = Annotated[Session, Depends(get_db)]
 class UserCreateRequest(BaseModel):
     username: str = Field(min_length=2, max_length=120)
     name: str = Field(min_length=1, max_length=120)
-    email: str = Field(min_length=3, max_length=320)
+    email: str | None = Field(default=None, min_length=3, max_length=320)
+    password: SecretStr = Field(min_length=10, max_length=128)
     role_codes: list[str] = Field(min_length=1)
     room_ids: list[uuid.UUID] | None = None
     active: bool = True
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 2:
+            raise ValueError("登录名至少 2 位")
+        return normalized
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("姓名不能为空")
+        return normalized
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_optional_email(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
 
 
 class UserAccessUpdateRequest(BaseModel):
     role_codes: list[str] = Field(min_length=1)
     room_ids: list[uuid.UUID] | None = None
     active: bool = True
+
+
+class UserPasswordResetRequest(BaseModel):
+    password: SecretStr = Field(min_length=10, max_length=128)
 
 
 class RoleAccessUpdateRequest(BaseModel):
@@ -149,6 +176,7 @@ def _serialize_user(db: Session, user: User) -> dict[str, Any]:
         "feishu_bound": bool(
             user.feishu_user_id and not user.feishu_user_id.startswith(("pending:", "test:"))
         ),
+        "password_login_enabled": bool(user.username and user.password_hash),
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
     }
 
@@ -339,11 +367,25 @@ def create_user(
 ) -> dict[str, Any]:
     roles = _roles_by_codes(db, payload.role_codes)
     room_ids = None if payload.room_ids is None else _validate_room_ids(db, payload.room_ids)
+    normalized_username = payload.username.strip().casefold()
+    normalized_email = payload.email.strip().lower() if payload.email else None
+    username_exists = db.scalar(
+        select(User.id).where(func.lower(func.trim(User.username)) == normalized_username)
+    )
+    if username_exists is not None:
+        raise HTTPException(status_code=409, detail="账号或邮箱已存在")
+    if normalized_email:
+        email_exists = db.scalar(
+            select(User.id).where(func.lower(func.trim(User.email)) == normalized_email)
+        )
+        if email_exists is not None:
+            raise HTTPException(status_code=409, detail="账号或邮箱已存在")
     user = User(
         feishu_user_id=None,
-        username=payload.username.strip(),
+        username=normalized_username,
         name=payload.name.strip(),
-        email=payload.email.strip().lower(),
+        email=normalized_email,
+        password_hash=hash_password(payload.password.get_secret_value()),
         role_name=_role_code(roles[0]),
         status="active" if payload.active else "disabled",
         active=payload.active,
@@ -367,6 +409,36 @@ def create_user(
         db.rollback()
         raise HTTPException(status_code=409, detail="账号或邮箱已存在") from exc
     db.refresh(user)
+    return _serialize_user(db, user)
+
+
+@router.put("/users/{user_id}/password")
+def reset_user_password(
+    user_id: uuid.UUID,
+    payload: UserPasswordResetRequest,
+    request: Request,
+    db: DbSession,
+    access: AdminAccess,
+) -> dict[str, Any]:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if not user.username:
+        raise HTTPException(status_code=409, detail="请先为该用户配置登录名")
+    before_enabled = bool(user.password_hash)
+    user.password_hash = hash_password(payload.password.get_secret_value())
+    record_permission_audit(
+        db,
+        actor_user_id=access.user_id,
+        action="user_password_reset",
+        target_type="user",
+        target_id=str(user.id),
+        target_user_id=user.id,
+        before_value={"password_login_enabled": before_enabled},
+        after_value={"password_login_enabled": True},
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
     return _serialize_user(db, user)
 
 

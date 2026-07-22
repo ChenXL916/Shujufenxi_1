@@ -34,6 +34,7 @@ class AccessScope:
     role_codes: frozenset[str] = frozenset()
     permission_codes: frozenset[str] | None = frozenset()
     scope_label: str = "无直播间"
+    auth_mode: str = "feishu_oauth"
 
     @property
     def is_developer(self) -> bool:
@@ -64,7 +65,7 @@ class AccessScope:
         return self.room_ids
 
 
-def _session_user(request: Request, session: Session, settings: Settings) -> User:
+def _session_user(request: Request, session: Session, settings: Settings) -> tuple[User, str]:
     session_cookie = request.cookies.get("live_ops_session")
     if not session_cookie:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="请先登录")
@@ -80,7 +81,10 @@ def _session_user(request: Request, session: Session, settings: Settings) -> Use
     user = session.get(User, user_id)
     if user is None or not user.active or user.status != "active":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号不可用")
-    return user
+    auth_mode = payload.get("auth_mode", "feishu_oauth")
+    if auth_mode not in {"feishu_oauth", "password"}:
+        auth_mode = "feishu_oauth"
+    return user, auth_mode
 
 
 def _user_roles(session: Session, user: User) -> list[Role]:
@@ -134,9 +138,10 @@ def get_access_scope(
             export_room_ids=None,
             can_export=True,
             scope_label="全部直播间",
+            auth_mode="development_bypass",
         )
 
-    user = _session_user(request, session, settings)
+    user, auth_mode = _session_user(request, session, settings)
     require_csrf(request, settings)
     roles = _user_roles(session, user)
     role_codes = frozenset((role.role_code or role.name) for role in roles)
@@ -204,6 +209,7 @@ def get_access_scope(
         export_room_ids=export_room_ids,
         can_export=can_export,
         scope_label=_scope_label(session, room_ids),
+        auth_mode=auth_mode,
     )
 
 

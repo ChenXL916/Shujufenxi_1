@@ -390,6 +390,23 @@ export async function getCurrentUser(): Promise<CurrentUser> {
   return (await client.get<CurrentUser>('/auth/me', { baseURL: '/' })).data
 }
 
+export async function loginWithPassword(payload: {
+  username: string
+  password: string
+}): Promise<{ authenticated: boolean; redirect_url: string }> {
+  return (
+    await client.post<{ authenticated: boolean; redirect_url: string }>(
+      '/auth/password/login',
+      payload,
+      { baseURL: '/' },
+    )
+  ).data
+}
+
+export async function logoutCurrentUser(): Promise<void> {
+  await client.post('/auth/logout', null, { baseURL: '/' })
+}
+
 export async function getFeishuStatus(): Promise<FeishuStatus> {
   return (await client.get<FeishuStatus>('/auth/feishu/status', { baseURL: '/' })).data
 }
@@ -434,9 +451,23 @@ export async function getPermissionOverview(): Promise<PermissionOverview> {
 }
 
 export async function createPermissionUser(
-  payload: PermissionUserInput & { username: string; name: string; email: string },
+  payload: PermissionUserInput & {
+    username: string
+    name: string
+    email?: string
+    password: string
+  },
 ): Promise<PermissionUser> {
   return (await client.post<PermissionUser>('/admin/permissions/users', payload)).data
+}
+
+export async function resetPermissionUserPassword(
+  userId: string,
+  password: string,
+): Promise<PermissionUser> {
+  return (
+    await client.put<PermissionUser>(`/admin/permissions/users/${userId}/password`, { password })
+  ).data
 }
 
 export async function updatePermissionUserAccess(

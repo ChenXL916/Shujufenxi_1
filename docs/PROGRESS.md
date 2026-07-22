@@ -358,3 +358,15 @@
 - [x] `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥、生产无夹具写入和 Docker 构建路径通过；本机无 Docker CLI，容器部分完成等价静态验收。
 - [x] Netlify 已部署提交 `3ad3d1b` 的前端产物；无 Cookie 浏览器访问根链接可见“请先使用飞书登录”和“使用飞书登录”按钮，页面无 JavaScript 异常。
 - [x] 公网代理 RBAC 复验通过：`live_manager` 会话读取 3 个直播间，`can_manage_permissions=false`，权限总览返回 HTTP 403。
+
+## 阶段 24：网页账号密码登录与分级访问
+
+- [x] 复用 `users.username/password_hash`、既有签名会话、CSRF、RBAC 与直播间 Data Scope；未新增数据库列，不需要迁移或改动真实业务数据。
+- [x] 新增随机盐 scrypt 单向密码哈希、统一错误提示、Redis/进程内失败限流、8 小时安全 Cookie 会话、`auth_mode=password` 和不含秘密的登录成功审计。
+- [x] 管理员可创建“登录名 + 初始密码 + 角色 + 直播间范围”的网页账号，邮箱改为可选；已有账号可单独重置密码，API 和用户列表只返回是否启用，不返回密码或哈希。
+- [x] 未登录共享链接已显示网页账号密码表单，保留管理员飞书登录入口；登录后继续按服务端权限显示数据与菜单，并新增退出登录入口。
+- [x] 第一阶段定向验证通过：13 个认证/RBAC 后端测试和 8 个登录/权限管理前端测试全部通过；Ruff 格式与检查、ESLint 和 Prettier 通过。
+- [x] 完整 `make.cmd check` 退出 0：182 个后端测试、17 个前端文件/63 个单测、生产构建和 6 个 Playwright Chromium E2E 全部通过；领域与服务覆盖率 86.36%。
+- [x] 部署前使用生产环境配置完成 SQLite 在线备份：`backups/live_ops_20260722T101626Z.sqlite3`。
+- [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥、生产无夹具写入及 Docker 构建路径均有效；本机无 Docker CLI，容器部分完成等价静态验收。
+- [ ] 公网临时账号登录、权限隔离冒烟、Netlify 发布和最终 GitHub 推送待执行。
