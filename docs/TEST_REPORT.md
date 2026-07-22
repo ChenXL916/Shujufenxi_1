@@ -176,3 +176,26 @@
 - 最终 `make.cmd verify-production` 退出 0：7 服务、33 表、迁移、强密钥策略、生产无夹具写入与 Docker 构建路径均通过；Docker 运行态限制不变。
 - GitHub Linux CI 首轮仅有一条原有预警页重交互测试在 5.35 秒触发默认 5 秒超时；定向放宽该测试至 15 秒后连续复跑 3/3 通过（4.55–5.23 秒），未跳过测试或删除断言。
 - CI 稳定性修复后的最终复验：`make.cmd check` 退出 0（176 个后端、17 个前端文件/61 个单测、生产构建、6 个 Playwright E2E，覆盖率 86.42%）；`make.cmd verify-production` 退出 0。
+
+## 2026-07-22 Netlify 真实数据恢复验收
+
+- 根因：Netlify 已能加载前端，但此前配置的 Cloudflare 临时后端返回 HTTP 502，导致 `/api` 无法取得数据；不是飞书表格为空。
+- 飞书正式同步：使用已有用户授权令牌读取 4 个实绩源与 2 个排班源，共 1,469 条源记录；生成 2,384 条小时事实。首轮同步的源校验异常共 18 条，随后幂等复查仍保留 `Mistine 水散粉` 9 条异常，异常未混入聚合结果。
+- 运行态：FastAPI `/health` 返回 HTTP 200；`/ready` 返回 `ready`，模式为 `feishu`，数据库与 Redis 均为 `ok`；实时同步循环首轮完成且未产生重复预警推送。
+- Netlify 同源代理：`/health`、`/ready`、`/auth/me`、`/api/v1/filters/options`、总览和小时趋势均返回 HTTP 200 JSON；筛选接口识别 3 个直播间、25 位主播、5 位场控和 46 个指标，数据范围为 2026-06-23 至 2026-07-21。
+- 浏览器验收：`/overview?start=2026-07-21&end=2026-07-21` 显示 8 项 KPI、3 个直播间排名和 24 个小时段；成交金额 ¥551,448.49、消耗 ¥359,637.02、整体 ROI 1.75、订单 10,248、观看人数 118,722。浏览器控制台错误/警告为 0。
+- 部署证据：Netlify 生产部署 ID `6a605c0cda8a26deaa18eea1` 构建成功，构建日志确认后端代理规则已生成。
+- 完整门禁：首轮发现 4 个前端文件存在 Prettier 格式漂移；按项目规则格式化后从头复跑，最终 `make.cmd check` 退出 0。Ruff、ESLint、mypy、TypeScript、Prettier、176 个后端测试、17 个前端测试文件/61 个单测、生产构建及 6 个 Playwright E2E 全部通过，后端覆盖率 86.42%。
+- 生产验收：`make.cmd verify-production` 退出 0，验证 7 服务、33 表、迁移、强密钥、生产无夹具写入和 Docker 构建路径；由于本机无 Docker CLI，容器部分为等价 YAML/路径/安全静态校验。
+- 边界：当前公网后端通过 Cloudflare Quick Tunnel 暂时恢复，入口没有持久 SLA，依赖本机 API、同步与隧道进程；正式长期部署仍需固定隧道或云主机。
+
+## 2026-07-22 飞书 OAuth 与隧道二次恢复验收
+
+- 飞书回调登记：新授权请求使用 `https://jskzsjfx.netlify.app/auth/feishu/callback`，飞书授权入口已接受该地址，不再出现错误码 `20029`。
+- OAuth state：登录入口设置 10 分钟有效的安全 cookie；保持 cookie 的伪造 code 回调进入令牌交换阶段而非 `OAuth state 校验失败`，证明 state 绑定链路正确。
+- 故障边界：旧 Quick Tunnel 在回调阶段返回 Cloudflare Host 502；本地 `/ready` 同时返回 HTTP 200、`mode=feishu`、数据库和 Redis 均为 `ok`，因此根因不是飞书权限或数据为空。
+- 新隧道探针：新的 HTTPS 源站 `/ready` 返回 HTTP 200；Netlify 生产构建生成 API、OAuth、健康和就绪四组同源代理规则。
+- 定向回归：`test_deployment_safety.py` 6/6 通过；`HourlyRoiSpendSection.test.tsx` 7/7 通过且无测试环境销毁后的未处理 React 错误。
+- 完整门禁：`make.cmd check` 退出 0；176 个后端测试、17 个前端测试文件/61 个单测、生产构建、6 个 Playwright E2E 全部通过，后端覆盖率 86.42%。
+- 生产验收：`make.cmd verify-production` 退出 0；验证 7 服务、33 表、迁移、强密钥、生产无夹具写入与 Docker 构建路径。本机无 Docker CLI，容器运行态仍未实测。
+- 运行边界：Cloudflare Quick Tunnel 无持续可用性保证；正式 24×7 运行必须迁移到固定域名的命名隧道或云服务器。
