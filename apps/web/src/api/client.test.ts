@@ -1,17 +1,57 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { AxiosResponse } from 'axios'
 
 const axiosPost = vi.hoisted(() => vi.fn())
+const axiosResponseUse = vi.hoisted(() => vi.fn())
 
 vi.mock('axios', () => ({
   default: {
     create: vi.fn(() => ({
-      interceptors: { request: { use: vi.fn() } },
+      interceptors: {
+        request: { use: vi.fn() },
+        response: { use: axiosResponseUse },
+      },
       post: axiosPost,
     })),
   },
 }))
 
-import { buildAnchorTrendParams, serializeQueryParams, syncFeishuNow } from './client'
+import {
+  buildAnchorTrendParams,
+  ensureJsonApiResponse,
+  serializeQueryParams,
+  syncFeishuNow,
+} from './client'
+
+describe('ensureJsonApiResponse', () => {
+  const response = (contentType: string, responseType?: 'blob') =>
+    ({
+      data: {},
+      status: 200,
+      statusText: 'OK',
+      headers: { 'content-type': contentType },
+      config: { headers: {}, responseType },
+    }) as AxiosResponse
+
+  it('accepts JSON API responses', () => {
+    const json = response('application/json; charset=utf-8')
+
+    expect(ensureJsonApiResponse(json)).toBe(json)
+    expect(axiosResponseUse).toHaveBeenCalledWith(ensureJsonApiResponse)
+  })
+
+  it('rejects an HTML SPA fallback instead of passing it to dashboard renderers', () => {
+    expect(() => ensureJsonApiResponse(response('text/html; charset=UTF-8'))).toThrow(
+      'API 返回了非 JSON 内容',
+    )
+  })
+
+  it('does not reject download responses', () => {
+    const download = response('application/octet-stream', 'blob')
+
+    expect(ensureJsonApiResponse(download)).toBe(download)
+  })
+})
 
 describe('serializeQueryParams', () => {
   it('uses repeated FastAPI-compatible keys for every multi-select filter', () => {

@@ -298,6 +298,10 @@
 - [x] 修复 Windows 下 Playwright 完成后偶发无法退出的问题；独立 E2E 启停器会回收本轮启动的 Vite 与 Uvicorn 子进程。
 - [x] 修复后 `make.cmd check` 退出 0：176 个后端测试、17 个前端测试文件/58 个单测、生产构建与 6 个 Playwright E2E 全部通过，后端覆盖率 86.42%。
 - [x] 修复后 `make.cmd verify-production` 退出 0：7 服务、33 表、迁移、强密钥、生产无夹具写入及 Docker 构建路径均通过静态验收。
+- [x] PR #1 已合并到 `main`，Netlify 项目 `jskzsjfx` 已连接 GitHub 并完成首次生产部署；`/` 与 `/overview` 均返回 HTTP 200，原默认 404 已消失。
+- [x] 新增 API 响应格式保护：未配置公网后端时，HTML 回退会进入“数据加载失败”状态，不再被当成 JSON 导致前端白屏；新增 JSON、HTML 与文件下载三类单测。
+- [x] 线上保护修复后 `make.cmd check` 再次退出 0：176 个后端测试、17 个前端测试文件/61 个单测、生产构建与 6 个 Playwright E2E 全部通过，后端覆盖率 86.42%。
+- [x] 线上保护修复后 `make.cmd verify-production` 再次退出 0；当前主机无 Docker CLI，容器部分仍为等价静态校验。
 - [ ] 实时数据上线仍需一个可公开访问的生产后端源站，并在 Netlify 设置 `NETLIFY_BACKEND_ORIGIN`；前端发布不会替代 API、数据库和定时同步服务。
 
 ## 环境限制

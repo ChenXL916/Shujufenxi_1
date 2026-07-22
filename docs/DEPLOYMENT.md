@@ -42,3 +42,5 @@ NETLIFY_BACKEND_ORIGIN=https://api.example.com
 该值必须是公开 HTTPS 源站，不能包含路径、账号密码、查询参数或锚点。重新部署后，构建脚本会按顺序生成 `/api/*`、`/auth/*`、`/health`、`/ready` 的同源代理规则，再写入 SPA 回退规则。这样飞书 OAuth 会话 Cookie 和 CSRF 校验仍通过 Netlify 域名工作。
 
 后端生产环境同时需要把 `APP_BASE_URL`、`API_BASE_URL` 和 `FEISHU_REDIRECT_URI` 配置为用户访问的 Netlify HTTPS 域名，把 `CORS_ORIGINS` 限定为该域名。飞书 `App Secret`、机器人密钥和数据库密码只能配置在后端，禁止写入 Netlify 的 `VITE_*` 构建变量。
+
+若尚未配置 `NETLIFY_BACKEND_ORIGIN`，前端会把非 JSON 的 SPA 回退响应识别为“API 未连接”，页面显示可重试错误态，不再因把 HTML 当作接口数据而白屏。该保护只改善故障呈现，不代表实时后端已经上线。
