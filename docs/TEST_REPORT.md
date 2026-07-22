@@ -188,3 +188,14 @@
 - 完整门禁：首轮发现 4 个前端文件存在 Prettier 格式漂移；按项目规则格式化后从头复跑，最终 `make.cmd check` 退出 0。Ruff、ESLint、mypy、TypeScript、Prettier、176 个后端测试、17 个前端测试文件/61 个单测、生产构建及 6 个 Playwright E2E 全部通过，后端覆盖率 86.42%。
 - 生产验收：`make.cmd verify-production` 退出 0，验证 7 服务、33 表、迁移、强密钥、生产无夹具写入和 Docker 构建路径；由于本机无 Docker CLI，容器部分为等价 YAML/路径/安全静态校验。
 - 边界：当前公网后端通过 Cloudflare Quick Tunnel 暂时恢复，入口没有持久 SLA，依赖本机 API、同步与隧道进程；正式长期部署仍需固定隧道或云主机。
+
+## 2026-07-22 飞书 OAuth 与隧道二次恢复验收
+
+- 飞书回调登记：新授权请求使用 `https://jskzsjfx.netlify.app/auth/feishu/callback`，飞书授权入口已接受该地址，不再出现错误码 `20029`。
+- OAuth state：登录入口设置 10 分钟有效的安全 cookie；保持 cookie 的伪造 code 回调进入令牌交换阶段而非 `OAuth state 校验失败`，证明 state 绑定链路正确。
+- 故障边界：旧 Quick Tunnel 在回调阶段返回 Cloudflare Host 502；本地 `/ready` 同时返回 HTTP 200、`mode=feishu`、数据库和 Redis 均为 `ok`，因此根因不是飞书权限或数据为空。
+- 新隧道探针：新的 HTTPS 源站 `/ready` 返回 HTTP 200；Netlify 生产构建生成 API、OAuth、健康和就绪四组同源代理规则。
+- 定向回归：`test_deployment_safety.py` 6/6 通过；`HourlyRoiSpendSection.test.tsx` 7/7 通过且无测试环境销毁后的未处理 React 错误。
+- 完整门禁：`make.cmd check` 退出 0；176 个后端测试、17 个前端测试文件/61 个单测、生产构建、6 个 Playwright E2E 全部通过，后端覆盖率 86.42%。
+- 生产验收：`make.cmd verify-production` 退出 0；验证 7 服务、33 表、迁移、强密钥、生产无夹具写入与 Docker 构建路径。本机无 Docker CLI，容器运行态仍未实测。
+- 运行边界：Cloudflare Quick Tunnel 无持续可用性保证；正式 24×7 运行必须迁移到固定域名的命名隧道或云服务器。

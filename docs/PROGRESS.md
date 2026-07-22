@@ -323,3 +323,14 @@
 - 当前机器未安装 Docker CLI，Compose 运行态将在具备 Docker Desktop/Engine 的环境补充验证。
 - 当前机器未安装 GNU Make；仓库已提供 `make.cmd` 作为 Windows 等价入口并用于完整门禁。
 - 当前机器没有 Docker、Podman 或可运行的 WSL Linux 发行版；本次已接入外部 Redis，`/ready` 验证连接正常，并以 Windows 兼容的实时同步循环恢复 5 分钟同步。Celery Worker/Beat 的容器化运行仍需 Linux/Docker 环境；Celery 官方不支持 Windows，`solo` 池只适合本机验证。
+
+## 阶段 21：飞书 OAuth 与公网隧道二次恢复
+
+- [x] 线上新授权请求已生成精确回调 `https://jskzsjfx.netlify.app/auth/feishu/callback`；飞书授权入口不再返回重定向地址错误 `20029`，确认开发者后台登记已经生效。
+- [x] 复核 OAuth state cookie 为 `Secure`、`HttpOnly`、`SameSite=Lax`，并用同一 cookie 回调验证 state 校验已通过；旧授权页不可刷新复用，必须从 `/auth/feishu/login` 重新发起。
+- [x] 定位到随后出现的 HTTP 502 来自失效的 Cloudflare Quick Tunnel，而不是飞书权限或源表；本地 FastAPI `/ready` 始终为 `ready`，数据库与 Redis 均为 `ok`。
+- [x] 重启公网隧道并把 Netlify 构建代理更新为新的 HTTPS 源站；定向生产构建生成 `/api/*`、`/auth/*`、`/health`、`/ready` 四组代理规则。
+- [x] 修复小时对比组件测试在 jsdom 销毁后仍执行 React 调度任务的问题；定向 7/7 通过且无未处理错误。
+- [x] 最终 `make.cmd check` 退出 0：176 个后端测试、17 个前端测试文件/61 个单测、生产构建与 6 个 Playwright E2E 全部通过；后端覆盖率 86.42%。
+- [x] 最终 `make.cmd verify-production` 退出 0：7 服务、33 表、迁移、强密钥策略、生产无夹具写入和 Docker 构建路径均通过；本机无 Docker CLI，容器部分仍为等价静态校验。
+- [ ] 当前仍是无 SLA 的 Quick Tunnel；本次只恢复即时访问，24×7 运行需要固定域名的命名隧道或云端 API 主机。

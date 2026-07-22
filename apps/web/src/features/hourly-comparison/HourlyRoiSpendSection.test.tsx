@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { vi } from 'vitest'
+import { afterEach, vi } from 'vitest'
 import type { DashboardFilters, FilterOptions } from '@/types/dashboard'
 import type {
   HourPeriodValues,
@@ -36,6 +36,14 @@ vi.mock('@/components/ECharts', () => ({
 }))
 
 import { HourlyRoiSpendSection } from './HourlyRoiSpendSection'
+
+afterEach(async () => {
+  // Ant Design/React may leave scheduler work queued after RTL unmounts the
+  // portal-heavy section. Drain that queue before jsdom removes `window`.
+  await act(async () => {
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  })
+})
 
 const emptyValues = (): HourPeriodValues => ({
   roi: null,

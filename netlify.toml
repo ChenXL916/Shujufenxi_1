@@ -5,6 +5,9 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # Temporary public origin used by the live demo. Replace this with a
+  # persistent HTTPS API origin before treating the deployment as 24x7.
+  NETLIFY_BACKEND_ORIGIN = "https://protection-employee-deck-bacterial.trycloudflare.com"
 
 # The build writes dist/_redirects. When NETLIFY_BACKEND_ORIGIN is configured,
 # API and Feishu OAuth requests are proxied to the separately hosted FastAPI

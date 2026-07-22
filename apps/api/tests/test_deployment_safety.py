@@ -68,12 +68,15 @@ def test_netlify_builds_the_vite_app_from_the_monorepo() -> None:
     config = tomllib.loads((ROOT / "netlify.toml").read_text(encoding="utf-8"))
     package = json.loads((ROOT / "apps" / "web" / "package.json").read_text(encoding="utf-8"))
 
-    assert config["build"] == {
+    build = config["build"]
+    assert {key: build[key] for key in ("base", "command", "publish")} == {
         "base": "apps/web",
         "command": "npm run build",
         "publish": "dist",
-        "environment": {"NODE_VERSION": "22"},
     }
+    assert build["environment"]["NODE_VERSION"] == "22"
+    backend_origin = build["environment"].get("NETLIFY_BACKEND_ORIGIN")
+    assert backend_origin is None or backend_origin.startswith("https://")
     assert "write-netlify-redirects.mjs" in package["scripts"]["build"]
 
 
