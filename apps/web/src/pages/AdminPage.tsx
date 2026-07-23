@@ -45,19 +45,26 @@ const tabs = [
   { key: 'audit-logs', label: '审计日志' },
 ]
 
-export function AdminPage() {
+export function AdminPage({ allowedSections }: { allowedSections?: string[] }) {
   const { section = 'sources' } = useParams()
   const navigate = useNavigate()
+  const visibleTabs = allowedSections
+    ? tabs.filter((tab) => allowedSections.includes(tab.key))
+    : tabs
   return (
     <Space orientation="vertical" size={16} className="page-stack">
       <PageHeader
         title="管理后台"
         description="所有修改均执行服务端角色、CSRF 校验并写入审计日志；密钥永不回显。"
         eyebrow="ADMINISTRATION"
-        actions={<Tag color="blue">Admin only</Tag>}
+        actions={<Tag color="blue">按角色授权</Tag>}
       />
       <Card className="data-card">
-        <Tabs activeKey={section} items={tabs} onChange={(key) => void navigate(`/admin/${key}`)} />
+        <Tabs
+          activeKey={section}
+          items={visibleTabs}
+          onChange={(key) => void navigate(`/admin/${key}`)}
+        />
         <AdminSection section={section} />
       </Card>
     </Space>

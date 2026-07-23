@@ -9,8 +9,9 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import AdminAccess
+from app.auth.dependencies import AccessScope, AdminAccess
 from app.auth.passwords import hash_password
+from app.auth.rbac import allowed_permission_codes, role_level, role_level_label
 from app.db.session import get_db
 from app.models.entities import (
     FeishuGroup,
@@ -171,15 +172,71 @@ def _effective_user_rooms(
     return room_ids, names
 
 
-def _serialize_user(db: Session, user: User) -> dict[str, Any]:
+def _actor_level(access: AccessScope) -> int:
+    if access.is_developer:
+        return role_level("developer")
+    return max((role_level(code) for code in access.role_codes), default=0)
+
+
+def _can_manage_role_codes(access: AccessScope, role_codes: list[str] | set[str]) -> bool:
+    if access.is_developer:
+        return True
+    target_level = max((role_level(code) for code in role_codes), default=0)
+    return target_level < _actor_level(access)
+
+
+def _assert_can_assign_roles(access: AccessScope, roles: list[Role]) -> None:
+    role_codes = {_role_code(role) for role in roles}
+    if not _can_manage_role_codes(access, role_codes):
+        raise HTTPException(status_code=403, detail="不能授予同级或更高等级角色")
+
+
+def _assert_can_manage_user(
+    db: Session,
+    access: AccessScope,
+    user: User,
+    *,
+    allow_self_credentials: bool = False,
+) -> None:
+    if access.user_id == user.id:
+        if allow_self_credentials:
+            return
+        raise HTTPException(status_code=409, detail="不能修改当前登录账号的角色或状态")
+    target_codes = {_role_code(role) for role in _roles_for_user(db, user.id)}
+    if not _can_manage_role_codes(access, target_codes):
+        raise HTTPException(status_code=403, detail="不能管理同级或更高等级账号")
+
+
+def _can_edit_role(access: AccessScope, role: Role) -> bool:
+    code = _role_code(role)
+    if code == "developer":
+        return False
+    return access.is_developer or role_level(code) < _actor_level(access)
+
+
+def _assert_role_permission_ceiling(role: Role, permission_codes: list[str]) -> None:
+    allowed = allowed_permission_codes(_role_code(role))
+    over_limit = sorted(set(permission_codes) - allowed)
+    if over_limit:
+        raise HTTPException(
+            status_code=403,
+            detail=f"该角色等级不能配置权限：{', '.join(over_limit)}",
+        )
+
+
+def _serialize_user(db: Session, user: User, access: AccessScope) -> dict[str, Any]:
     roles = _roles_for_user(db, user.id)
+    role_codes = [_role_code(role) for role in roles]
     room_ids, room_names = _effective_user_rooms(db, user, roles)
+    can_manage = _can_manage_role_codes(access, set(role_codes))
+    is_self = access.user_id == user.id
     return {
         "id": str(user.id),
         "username": user.username,
         "name": user.name,
         "email": user.email,
-        "role_codes": [_role_code(role) for role in roles],
+        "role_codes": role_codes,
+        "role_level": max((role_level(code) for code in role_codes), default=0),
         "status": user.status,
         "active": user.active,
         "room_scope_mode": user.room_scope_mode,
@@ -191,10 +248,13 @@ def _serialize_user(db: Session, user: User) -> dict[str, Any]:
         ),
         "password_login_enabled": bool(user.username and user.password_hash),
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+        "can_edit_access": can_manage and not is_self,
+        "can_edit_credentials": is_self or can_manage,
+        "can_delete": can_manage and not is_self,
     }
 
 
-def _serialize_role(db: Session, role: Role) -> dict[str, Any]:
+def _serialize_role(db: Session, role: Role, access: AccessScope) -> dict[str, Any]:
     permission_codes = list(
         db.scalars(
             select(Permission.permission_code)
@@ -211,17 +271,24 @@ def _serialize_role(db: Session, role: Role) -> dict[str, Any]:
         )
     )
     rooms = _room_map(db)
+    code = _role_code(role)
+    level = role_level(code)
     return {
         "id": str(role.id),
-        "role_code": _role_code(role),
+        "role_code": code,
         "role_name": role.role_name or role.description or role.name,
         "description": role.description,
+        "level": level,
+        "level_label": role_level_label(code),
         "all_permissions": role.all_permissions,
         "system_role": role.system_role,
         "active": role.active,
         "permission_codes": permission_codes,
+        "allowed_permission_codes": sorted(allowed_permission_codes(code)),
         "room_ids": [str(item) for item in room_ids],
         "room_names": [rooms[item].name for item in room_ids if item in rooms],
+        "assignable": access.is_developer or level < _actor_level(access),
+        "editable": _can_edit_role(access, role),
     }
 
 
@@ -335,7 +402,10 @@ def _ensure_developer_remains(db: Session, target: User, roles: list[Role], acti
 @router.get("/overview")
 def permission_overview(db: DbSession, access: AdminAccess) -> dict[str, Any]:
     permissions = list(db.scalars(select(Permission).order_by(Permission.permission_code.asc())))
-    roles = list(db.scalars(select(Role).order_by(Role.role_code.asc(), Role.name.asc())))
+    roles = sorted(
+        db.scalars(select(Role)),
+        key=lambda item: (-role_level(_role_code(item)), _role_code(item)),
+    )
     resources = list(
         db.scalars(
             select(RoomResource).order_by(RoomResource.permission_group, RoomResource.room_name)
@@ -351,8 +421,10 @@ def permission_overview(db: DbSession, access: AdminAccess) -> dict[str, Any]:
     )
     return {
         "current_actor": str(access.user_id) if access.user_id else None,
-        "users": [_serialize_user(db, item) for item in users],
-        "roles": [_serialize_role(db, item) for item in roles],
+        "current_actor_role_codes": sorted(access.role_codes),
+        "current_actor_level": _actor_level(access),
+        "users": [_serialize_user(db, item, access) for item in users],
+        "roles": [_serialize_role(db, item, access) for item in roles],
         "permissions": [
             {
                 "id": str(item.id),
@@ -385,6 +457,7 @@ def create_user(
     access: AdminAccess,
 ) -> dict[str, Any]:
     roles = _roles_by_codes(db, payload.role_codes)
+    _assert_can_assign_roles(access, roles)
     room_ids = None if payload.room_ids is None else _validate_room_ids(db, payload.room_ids)
     normalized_username = payload.username.strip().casefold()
     normalized_email = payload.email.strip().lower() if payload.email else None
@@ -420,7 +493,7 @@ def create_user(
             target_type="user",
             target_id=str(user.id),
             target_user_id=user.id,
-            after_value=_serialize_user(db, user),
+            after_value=_serialize_user(db, user, access),
             ip_address=request.client.host if request.client else None,
         )
         db.commit()
@@ -428,7 +501,7 @@ def create_user(
         db.rollback()
         raise HTTPException(status_code=409, detail="账号或邮箱已存在") from exc
     db.refresh(user)
-    return _serialize_user(db, user)
+    return _serialize_user(db, user, access)
 
 
 @router.put("/users/{user_id}/password")
@@ -442,6 +515,7 @@ def reset_user_password(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="用户不存在")
+    _assert_can_manage_user(db, access, user, allow_self_credentials=True)
     if not user.username:
         raise HTTPException(status_code=409, detail="请先为该用户配置登录名")
     before_enabled = bool(user.password_hash)
@@ -458,7 +532,7 @@ def reset_user_password(
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
-    return _serialize_user(db, user)
+    return _serialize_user(db, user, access)
 
 
 @router.put("/users/{user_id}/credentials")
@@ -472,6 +546,7 @@ def update_user_credentials(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="用户不存在")
+    _assert_can_manage_user(db, access, user, allow_self_credentials=True)
     normalized_username = payload.username.strip().casefold()
     username_exists = db.scalar(
         select(User.id).where(
@@ -511,7 +586,7 @@ def update_user_credentials(
         db.rollback()
         raise HTTPException(status_code=409, detail="登录名已被其他用户使用") from exc
     db.refresh(user)
-    return _serialize_user(db, user)
+    return _serialize_user(db, user, access)
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -527,8 +602,9 @@ def delete_user(
     if access.user_id == user.id:
         raise HTTPException(status_code=409, detail="不能删除当前登录账号")
 
+    _assert_can_manage_user(db, access, user)
     _ensure_developer_remains(db, user, roles=[], active=False)
-    before = _serialize_user(db, user)
+    before = _serialize_user(db, user, access)
 
     # Preserve an invisible identity tombstone so a deleted Feishu user cannot
     # be auto-provisioned again on their next OAuth login.
@@ -577,12 +653,14 @@ def update_user_access(
     if user is None:
         raise HTTPException(status_code=404, detail="用户不存在")
     roles = _roles_by_codes(db, payload.role_codes)
+    _assert_can_manage_user(db, access, user)
+    _assert_can_assign_roles(access, roles)
     room_ids = None if payload.room_ids is None else _validate_room_ids(db, payload.room_ids)
     _ensure_developer_remains(db, user, roles, payload.active)
-    before = _serialize_user(db, user)
+    before = _serialize_user(db, user, access)
     _replace_user_access(db, user, roles=roles, room_ids=room_ids, active=payload.active)
     db.flush()
-    after = _serialize_user(db, user)
+    after = _serialize_user(db, user, access)
     record_permission_audit(
         db,
         actor_user_id=access.user_id,
@@ -611,14 +689,17 @@ def update_role_access(
         raise HTTPException(status_code=404, detail="角色不存在")
     if _role_code(role) == "developer":
         raise HTTPException(status_code=409, detail="开发者 ALL 权限不可降级")
+    if not _can_edit_role(access, role):
+        raise HTTPException(status_code=403, detail="不能配置同级或更高等级角色")
     permission_codes = list(dict.fromkeys(payload.permission_codes))
+    _assert_role_permission_ceiling(role, permission_codes)
     permissions = list(
         db.scalars(select(Permission).where(Permission.permission_code.in_(permission_codes)))
     )
     if {item.permission_code for item in permissions} != set(permission_codes):
         raise HTTPException(status_code=422, detail="包含未知权限点")
     room_ids = _validate_room_ids(db, payload.room_ids)
-    before = _serialize_role(db, role)
+    before = _serialize_role(db, role, access)
     db.execute(delete(RolePermission).where(RolePermission.role_id == role.id))
     db.add_all(RolePermission(role_id=role.id, permission_id=item.id) for item in permissions)
     db.execute(delete(RoleRoomScope).where(RoleRoomScope.role_id == role.id))
@@ -629,7 +710,7 @@ def update_role_access(
         role.description = payload.description.strip()
     role.active = payload.active
     db.flush()
-    after = _serialize_role(db, role)
+    after = _serialize_role(db, role, access)
     record_permission_audit(
         db,
         actor_user_id=access.user_id,

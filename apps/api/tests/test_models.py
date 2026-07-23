@@ -89,12 +89,14 @@ def test_reference_seed_is_complete_and_idempotent() -> None:
         seed_reference_data(session, ROOT, "seed-admin@example.com")
         assert session.scalar(select(func.count()).select_from(MetricDefinition)) == 46
         assert session.scalar(select(func.count()).select_from(ShiftRule)) == 5
-        assert session.scalar(select(func.count()).select_from(Role)) == 6
+        assert session.scalar(select(func.count()).select_from(Role)) == 8
         assert session.scalar(select(func.count()).select_from(User)) == 1
         assert session.scalar(select(func.count()).select_from(RoomMetricTarget)) == 3
         assert session.scalar(select(func.count()).select_from(HourlyComparisonRule)) == 1
         assert set(session.scalars(select(Role.role_code))) == {
             "developer",
+            "admin",
+            "operations_lead",
             "live_manager",
             "water_pm",
             "primer_pm",

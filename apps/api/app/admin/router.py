@@ -10,7 +10,15 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import AdminAccess
+from app.auth.dependencies import (
+    AccessScope,
+    AuditAccess,
+    DataSourceAccess,
+    SyncAccess,
+    SystemAccess,
+    UserManageAccess,
+)
+from app.auth.rbac import AUTO_PROVISION_ROLE_CODES
 from app.core.config import get_settings
 from app.core.paths import project_root
 from app.core.runtime_settings import load_runtime_settings
@@ -133,7 +141,7 @@ class SettingsPatch(BaseModel):
 def audit(
     db: Session,
     request: Request,
-    access: AdminAccess,
+    access: AccessScope,
     action: str,
     object_type: str,
     object_id: str | None,
@@ -154,13 +162,13 @@ def audit(
 
 
 @router.get("/sources")
-def list_sources(db: DbSession, access: AdminAccess) -> list[dict[str, Any]]:
+def list_sources(db: DbSession, access: DataSourceAccess) -> list[dict[str, Any]]:
     return [source_payload(source) for source in db.scalars(select(SourceConfig))]
 
 
 @router.post("/sources", status_code=201)
 def create_source(
-    payload: SourceRequest, request: Request, db: DbSession, access: AdminAccess
+    payload: SourceRequest, request: Request, db: DbSession, access: DataSourceAccess
 ) -> dict[str, Any]:
     source = SourceConfig(**payload.model_dump())
     db.add(source)
@@ -178,7 +186,7 @@ def update_source(
     payload: SourceRequest,
     request: Request,
     db: DbSession,
-    access: AdminAccess,
+    access: DataSourceAccess,
 ) -> dict[str, Any]:
     source = db.get(SourceConfig, source_id)
     if source is None:
@@ -193,7 +201,9 @@ def update_source(
 
 
 @router.post("/sources/{source_id}/test")
-async def test_source(source_id: uuid.UUID, db: DbSession, access: AdminAccess) -> dict[str, Any]:
+async def test_source(
+    source_id: uuid.UUID, db: DbSession, access: DataSourceAccess
+) -> dict[str, Any]:
     source = db.get(SourceConfig, source_id)
     if source is None:
         raise HTTPException(status_code=404, detail="数据源不存在")
@@ -216,7 +226,9 @@ async def test_source(source_id: uuid.UUID, db: DbSession, access: AdminAccess) 
 
 
 @router.get("/sources/{source_id}/scan")
-async def scan_source(source_id: uuid.UUID, db: DbSession, access: AdminAccess) -> dict[str, Any]:
+async def scan_source(
+    source_id: uuid.UUID, db: DbSession, access: DataSourceAccess
+) -> dict[str, Any]:
     source = db.get(SourceConfig, source_id)
     if source is None:
         raise HTTPException(status_code=404, detail="数据源不存在")
@@ -243,7 +255,7 @@ async def scan_source(source_id: uuid.UUID, db: DbSession, access: AdminAccess) 
 
 
 @router.post("/sources/{source_id}/sync")
-async def sync_source(source_id: uuid.UUID, db: DbSession, access: AdminAccess) -> dict[str, Any]:
+async def sync_source(source_id: uuid.UUID, db: DbSession, access: SyncAccess) -> dict[str, Any]:
     source = db.get(SourceConfig, source_id)
     if source is None:
         raise HTTPException(status_code=404, detail="数据源不存在")
@@ -259,7 +271,7 @@ async def sync_source(source_id: uuid.UUID, db: DbSession, access: AdminAccess) 
 
 
 @router.get("/metrics")
-def metrics(db: DbSession, access: AdminAccess) -> list[dict[str, Any]]:
+def metrics(db: DbSession, access: SystemAccess) -> list[dict[str, Any]]:
     return [
         row_payload(metric)
         for metric in db.scalars(select(MetricDefinition).order_by(MetricDefinition.sort_order))
@@ -272,7 +284,7 @@ def update_metric(
     payload: MetricPatch,
     request: Request,
     db: DbSession,
-    access: AdminAccess,
+    access: SystemAccess,
 ) -> dict[str, Any]:
     metric = db.get(MetricDefinition, metric_id)
     if metric is None:
@@ -287,7 +299,7 @@ def update_metric(
 
 
 @router.get("/shifts")
-def shifts(db: DbSession, access: AdminAccess) -> list[dict[str, Any]]:
+def shifts(db: DbSession, access: SystemAccess) -> list[dict[str, Any]]:
     return [row_payload(shift) for shift in db.scalars(select(ShiftRule).order_by(ShiftRule.name))]
 
 
@@ -297,7 +309,7 @@ def update_shift(
     payload: ShiftPatch,
     request: Request,
     db: DbSession,
-    access: AdminAccess,
+    access: SystemAccess,
 ) -> dict[str, Any]:
     shift = db.get(ShiftRule, shift_id)
     if shift is None:
@@ -312,7 +324,7 @@ def update_shift(
 
 
 @router.get("/users")
-def users(db: DbSession, access: AdminAccess) -> list[dict[str, Any]]:
+def users(db: DbSession, access: UserManageAccess) -> list[dict[str, Any]]:
     permissions = list(db.scalars(select(UserRoomPermission)))
     return [
         {
@@ -329,7 +341,7 @@ def update_user(
     payload: UserPatch,
     request: Request,
     db: DbSession,
-    access: AdminAccess,
+    access: UserManageAccess,
 ) -> dict[str, Any]:
     user = db.get(User, user_id)
     if user is None:
@@ -349,7 +361,7 @@ def update_permissions(
     payload: PermissionRequest,
     request: Request,
     db: DbSession,
-    access: AdminAccess,
+    access: UserManageAccess,
 ) -> dict[str, Any]:
     user = db.get(User, user_id)
     rooms = list(db.scalars(select(Room).where(Room.id.in_(payload.room_ids))))
@@ -377,7 +389,7 @@ def update_permissions(
 
 
 @router.get("/settings")
-def system_settings(db: DbSession, access: AdminAccess) -> dict[str, Any]:
+def system_settings(db: DbSession, access: SystemAccess) -> dict[str, Any]:
     settings = load_runtime_settings(db)
     stored = {item.key: item.value for item in db.scalars(select(SystemSetting))}
     return {
@@ -404,7 +416,10 @@ def system_settings(db: DbSession, access: AdminAccess) -> dict[str, Any]:
                 "label": role.role_name or role.description or role.name,
             }
             for role in db.scalars(
-                select(Role).where(Role.active.is_(True), Role.all_permissions.is_(False))
+                select(Role).where(
+                    Role.active.is_(True),
+                    Role.role_code.in_(AUTO_PROVISION_ROLE_CODES),
+                )
             )
         ],
     }
@@ -415,7 +430,7 @@ def update_settings(
     payload: SettingsPatch,
     request: Request,
     db: DbSession,
-    access: AdminAccess,
+    access: SystemAccess,
 ) -> dict[str, Any]:
     if (
         payload.feishu_auto_provision_role is not None
@@ -428,7 +443,7 @@ def update_settings(
             select(Role).where(
                 Role.role_code == proposed_role,
                 Role.active.is_(True),
-                Role.all_permissions.is_(False),
+                Role.role_code.in_(AUTO_PROVISION_ROLE_CODES),
             )
         )
         if role is None:
@@ -464,7 +479,7 @@ def update_settings(
 
 
 @router.get("/audit-logs")
-def audit_logs(db: DbSession, access: AdminAccess) -> list[dict[str, Any]]:
+def audit_logs(db: DbSession, access: AuditAccess) -> list[dict[str, Any]]:
     return [
         row_payload(item)
         for item in db.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(200))

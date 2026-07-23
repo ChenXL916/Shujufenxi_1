@@ -4,6 +4,7 @@ export interface PermissionUser {
   name: string
   email: string | null
   role_codes: string[]
+  role_level: number
   status: string
   active: boolean
   room_scope_mode: 'role' | 'custom'
@@ -13,6 +14,9 @@ export interface PermissionUser {
   feishu_bound: boolean
   password_login_enabled: boolean
   last_login_at: string | null
+  can_edit_access: boolean
+  can_edit_credentials: boolean
+  can_delete: boolean
 }
 
 export interface PermissionRole {
@@ -20,12 +24,17 @@ export interface PermissionRole {
   role_code: string
   role_name: string
   description: string | null
+  level: number
+  level_label: string
   all_permissions: boolean
   system_role: boolean
   active: boolean
   permission_codes: string[]
+  allowed_permission_codes: string[]
   room_ids: string[]
   room_names: string[]
+  assignable: boolean
+  editable: boolean
 }
 
 export interface PermissionDefinition {
@@ -55,6 +64,8 @@ export interface FeishuPermissionGroup {
 
 export interface PermissionOverview {
   current_actor: string | null
+  current_actor_role_codes: string[]
+  current_actor_level: number
   users: PermissionUser[]
   roles: PermissionRole[]
   permissions: PermissionDefinition[]

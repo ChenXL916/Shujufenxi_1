@@ -85,6 +85,8 @@ type GroupFormValues = {
 
 const roleColor: Record<string, string> = {
   developer: 'purple',
+  admin: 'red',
+  operations_lead: 'orange',
   live_manager: 'blue',
   water_pm: 'cyan',
   primer_pm: 'geekblue',
@@ -257,8 +259,8 @@ export function PermissionManagement() {
         showIcon
         icon={<SafetyCertificateOutlined />}
         type="info"
-        title="RBAC + Data Scope 已由后端统一执行"
-        description="用户 → 角色 → 权限点 → 直播间范围。前端仅负责展示；跨直播间请求、详情和导出仍由 API 返回 403。个人自定义范围优先于角色范围。"
+        title="五级权限链已由后端统一执行"
+        description="开发者（最高）→ 管理员 → 运营负责人 → 直播主管 → 项目 PM。同级和上级账号不可被下级修改、停用、删除或重置凭据；跨直播间请求仍由 API 返回 403。"
       />
       <Alert
         showIcon
@@ -414,10 +416,22 @@ function UsersPanel({
             width: 300,
             render: (_, item) => (
               <Space size={4}>
-                <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
+                <Button
+                  size="small"
+                  icon={<EditOutlined />}
+                  disabled={!item.can_edit_access}
+                  title={!item.can_edit_access ? '不能修改当前、同级或更高等级账号' : undefined}
+                  onClick={() => onEdit(item)}
+                >
                   权限
                 </Button>
-                <Button size="small" icon={<KeyOutlined />} onClick={() => onEditCredentials(item)}>
+                <Button
+                  size="small"
+                  icon={<KeyOutlined />}
+                  disabled={!item.can_edit_credentials}
+                  title={!item.can_edit_credentials ? '不能修改同级或更高等级账号' : undefined}
+                  onClick={() => onEditCredentials(item)}
+                >
                   账号密码
                 </Button>
                 <Popconfirm
@@ -426,17 +440,17 @@ function UsersPanel({
                   okText="确认删除"
                   cancelText="取消"
                   okButtonProps={{ danger: true }}
-                  disabled={item.id === data.current_actor}
+                  disabled={!item.can_delete}
                   onConfirm={() => onDelete(item.id)}
                 >
                   <Button
                     danger
                     size="small"
                     icon={<DeleteOutlined />}
-                    disabled={item.id === data.current_actor}
+                    disabled={!item.can_delete}
                     loading={deletingUserId === item.id}
                     title={
-                      item.id === data.current_actor ? '不能删除当前登录账号' : `删除${item.name}`
+                      !item.can_delete ? '不能删除当前、同级或更高等级账号' : `删除${item.name}`
                     }
                   >
                     删除
@@ -476,6 +490,12 @@ function RolesPanel({
           ),
         },
         {
+          title: '等级',
+          dataIndex: 'level_label',
+          width: 170,
+          render: (value: string, item) => <Tag color={roleColor[item.role_code]}>{value}</Tag>,
+        },
+        {
           title: '权限点',
           width: 360,
           render: (_, item) =>
@@ -511,8 +531,14 @@ function RolesPanel({
             <Button
               size="small"
               icon={<EditOutlined />}
-              disabled={item.all_permissions}
-              title={item.all_permissions ? '开发者 ALL 权限不可降级' : undefined}
+              disabled={!item.editable}
+              title={
+                item.all_permissions
+                  ? '开发者 ALL 权限不可降级'
+                  : !item.editable
+                    ? '不能配置同级或更高等级角色'
+                    : undefined
+              }
               onClick={() => onEdit(item)}
             >
               配置
@@ -706,7 +732,7 @@ function UserEditorModal({
           <Select
             mode="multiple"
             options={data.roles
-              .filter((role) => role.active)
+              .filter((role) => role.active && role.assignable)
               .map((role) => ({ value: role.role_code, label: role.role_name }))}
           />
         </Form.Item>
@@ -870,10 +896,12 @@ function RoleEditorModal({
         <Form.Item name="permission_codes" label="权限点">
           <Select
             mode="multiple"
-            options={data.permissions.map((item) => ({
-              value: item.code,
-              label: `${item.name} · ${item.code}`,
-            }))}
+            options={data.permissions
+              .filter((item) => value?.allowed_permission_codes.includes(item.code))
+              .map((item) => ({
+                value: item.code,
+                label: `${item.name} · ${item.code}`,
+              }))}
           />
         </Form.Item>
         <Form.Item name="room_ids" label="允许直播间">

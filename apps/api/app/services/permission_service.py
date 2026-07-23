@@ -8,6 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.auth.rbac import (
+    AUTO_PROVISION_ROLE_CODES,
     INITIAL_ROOM_RESOURCE_CONFIG,
     LEGACY_ROLE_MAP,
     PERMISSION_DEFINITIONS,
@@ -82,8 +83,8 @@ def provision_feishu_user(
     )
     if role is None:
         raise ValueError(f"飞书自动开户默认角色不可用：{default_role_code}")
-    if role.all_permissions or _role_code(role) == "developer":
-        raise ValueError("飞书自动开户不能授予 developer 角色")
+    if _role_code(role) not in AUTO_PROVISION_ROLE_CODES:
+        raise ValueError("飞书自动开户只能授予直播主管、项目 PM 或受限查看者角色")
 
     normalized_email = email.strip().lower() if email and email.strip() else None
     if normalized_email is not None:
@@ -324,10 +325,20 @@ def seed_permission_reference_data(
 
     users = list(session.scalars(select(User)))
     for user in users:
-        mapped = LEGACY_ROLE_MAP.get(user.role_name, user.role_name)
+        original_role_name = user.role_name
+        mapped = LEGACY_ROLE_MAP.get(original_role_name, original_role_name)
         user_role = roles.get(mapped)
         if user_role is None:
             continue
+        # Older builds treated the legacy "admin" value as developer. Once the
+        # formal administrator rank exists, remove that historical escalation.
+        if original_role_name == "admin":
+            session.execute(
+                delete(UserRole).where(
+                    UserRole.user_id == user.id,
+                    UserRole.role_id == roles["developer"].id,
+                )
+            )
         user.role_name = mapped
         _ensure_user_role(session, user, user_role)
     if dev_admin_email:

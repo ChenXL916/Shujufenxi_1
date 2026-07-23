@@ -188,13 +188,14 @@ function formatUpdatedAt(value?: string | null): string {
 }
 
 const roleLabels: Record<string, string> = {
-  developer: '开发者/超级管理员',
+  developer: '开发者（最高权限）',
+  admin: '管理员',
+  operations_lead: '运营负责人',
   live_manager: '直播主管',
   water_pm: '水散粉PM',
   primer_pm: '妆前乳PM',
   powder_pm: '散粉PM',
   viewer: '受限查看者',
-  admin: '管理员（兼容）',
   operator: '运营（兼容）',
 }
 
@@ -257,6 +258,31 @@ export default function App() {
     hasAllPermissions ||
     permissionCodes.includes('permission.manage') ||
     currentUser.data?.features?.can_manage_permissions === true
+  const canManageDataSources = hasAllPermissions || permissionCodes.includes('data_source.manage')
+  const canManageAlertRules =
+    hasAllPermissions ||
+    permissionCodes.includes('alert_rule.manage') ||
+    permissionCodes.includes('roi_target.manage')
+  const canViewAudit = hasAllPermissions || permissionCodes.includes('audit.view')
+  const canManageSystem =
+    hasAllPermissions ||
+    permissionCodes.includes('system.manage') ||
+    currentUser.data?.features?.can_manage_system === true
+  const adminSectionAccess: Record<string, boolean> = {
+    sources: canManageDataSources,
+    metrics: canManageSystem,
+    shifts: canManageSystem,
+    users: canManagePermissions,
+    settings: canManageSystem,
+    'alert-rules': canManageAlertRules,
+    'audit-logs': canViewAudit,
+  }
+  const canAccessAdministration = Object.values(adminSectionAccess).some(Boolean)
+  const allowedAdminPaths = new Set(
+    Object.entries(adminSectionAccess)
+      .filter(([, allowed]) => allowed)
+      .map(([section]) => `/admin/${section}`),
+  )
   const pageTitle = pageTitles[location.pathname] ?? '直播数据驾驶舱'
   const userName = currentUser.data?.name || '当前用户'
   const userRole = currentUser.data?.role
@@ -311,14 +337,42 @@ export default function App() {
       </Layout>
     )
   }
-  const visibleItems = items?.filter((item) => {
-    if (!item || !('key' in item)) return false
-    if (item.key === 'analysis' || item.key === 'people') return canViewDashboard
-    if (item.key === 'monitoring') return canViewAlerts
-    if (item.key === 'administration') return canManagePermissions
-    return false
-  })
-  const defaultRoute = canViewDashboard ? '/overview' : canViewAlerts ? '/alerts' : '/access-denied'
+  const visibleItems: MenuProps['items'] = items
+    ?.filter((item) => {
+      if (!item || !('key' in item)) return false
+      if (item.key === 'analysis' || item.key === 'people') return canViewDashboard
+      if (item.key === 'monitoring') return canViewAlerts
+      if (item.key === 'administration') return canAccessAdministration
+      return false
+    })
+    .map((item) => {
+      if (
+        item &&
+        'key' in item &&
+        item.key === 'administration' &&
+        'children' in item &&
+        item.children
+      ) {
+        return {
+          ...item,
+          children: item.children.filter(
+            (child) => child && 'key' in child && allowedAdminPaths.has(String(child.key)),
+          ),
+        }
+      }
+      return item
+    })
+  const requestedAdminSection = location.pathname.startsWith('/admin/')
+    ? location.pathname.slice('/admin/'.length)
+    : ''
+  const canAccessRequestedAdminSection =
+    requestedAdminSection in adminSectionAccess && adminSectionAccess[requestedAdminSection]
+  const firstAdminRoute = allowedAdminPaths.values().next().value
+  const defaultRoute = canViewDashboard
+    ? '/overview'
+    : canViewAlerts
+      ? '/alerts'
+      : (firstAdminRoute ?? '/access-denied')
   const accessDenied = (
     <Result
       status="403"
@@ -379,7 +433,7 @@ export default function App() {
                 <strong title={userName}>{userName}</strong>
                 <span title={userRole}>{userRole}</span>
               </div>
-              {canManagePermissions ? (
+              {canManageSystem ? (
                 <Tooltip title="系统设置">
                   <Link
                     className="sider-user-settings"
@@ -506,7 +560,17 @@ export default function App() {
               <Route path="/alerts" element={canViewAlerts ? <AlertsPage /> : accessDenied} />
               <Route
                 path="/admin/:section"
-                element={canManagePermissions ? <AdminPage /> : accessDenied}
+                element={
+                  canAccessRequestedAdminSection ? (
+                    <AdminPage
+                      allowedSections={Object.keys(adminSectionAccess).filter(
+                        (section) => adminSectionAccess[section],
+                      )}
+                    />
+                  ) : (
+                    accessDenied
+                  )
+                }
               />
               <Route path="/access-denied" element={accessDenied} />
               <Route path="*" element={<Navigate to={defaultRoute} replace />} />

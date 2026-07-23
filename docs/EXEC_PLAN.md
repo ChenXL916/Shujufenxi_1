@@ -114,7 +114,7 @@
 
 - 保留 `users`、`roles`、`user_room_permissions` 与现有 OAuth 会话，新增正式 `room_resources`、`permissions`、`role_permissions`、`user_roles`、`role_room_scopes`、`feishu_groups`、`feishu_group_room_scopes`、`permission_audit_logs`。
 - `UserRoomPermission` 继续承担个人特殊房间授权；用户存在个人授权时覆盖角色房间范围，否则使用角色范围；`developer` 为 ALL。
-- 旧 `admin/operator/viewer` 数据在迁移中分别兼容到 `developer/live_manager/viewer`，不删除已有用户、事件、配置或业务数据。
+- 旧 `admin/operator/viewer` 数据分别兼容到 `admin/live_manager/viewer`；正式管理员不再被映射为开发者，避免历史兼容逻辑造成越级。
 
 ### 2. 后端安全边界
 
@@ -122,13 +122,13 @@
 - 客户端显式请求未授权 `room_id` 一律返回 403，而不是静默扩大、先查全量后过滤或依赖前端隐藏。
 - 总览、小时趋势、小时比较、主播/场控/搭配、详情、透视、比较、导出、普通预警、主播趋势均使用同一房间范围。
 - 飞书群必须绑定允许直播间；事件或汇总包含群范围外直播间时发送前失败关闭，禁止跨房间泄露。
-- 用户、角色、权限、直播间绑定、系统/飞书配置、数据源与审计日志仅 `developer` 可访问；修改权限与敏感导出写入独立权限审计日志，值中不得出现密码或 Token。
+- 用户、角色和系统配置由 `developer/admin` 管理；`operations_lead` 只访问数据源、同步、ROI/预警规则和审计；修改权限与敏感配置写入审计日志，值中不得出现密码或 Token。
 
 ### 3. 前端与验收
 
 - `/auth/me` 返回权限点、角色集合、可见直播间与数据范围标签；菜单、同步、导出、管理按钮按权限显示。
 - `/admin/*` 使用路由级权限保护；无权直达时显示中文 403，不发起管理 API 请求。
-- 权限管理页展示用户、角色、直播间资源和角色 × 权限矩阵，并提供开发者可审计的用户角色/范围配置。
+- 权限管理页展示用户、角色等级、直播间资源和角色 × 权限矩阵，并按服务端返回值禁用当前、同级和更高等级账号操作。
 - 建立 `developer_test`、`live_manager_test`、`water_pm_test`、`primer_pm_test`、`powder_pm_test` 五类测试身份；后端真实数据范围测试与前端截图均使用隔离测试运行时，不向真实飞书群发送消息。
 
 ## 已知实现边界
@@ -220,3 +220,24 @@
 - 本机无 Docker：仍生成完整 Compose、Dockerfile、健康检查和静态生产验证；最终明确运行态未在本机实测。
 - Windows 无 GNU Make：提供 Makefile 与跨平台脚本，并使用仓库 `make.cmd` 执行同名目标；若未运行完整目标，必须保持为待验收。
 - 本机无 Redis 且 WSL 无发行版：不能启动真实 Celery Worker/Beat。最小恢复路径是提供外部 Redis，或安装 Debian WSL 与 `redis-server` 并把 Worker/Beat 一并放入 Linux；Celery 官方不支持 Windows，`solo` 池仅可作为本地验证。
+
+## 阶段 30：五级角色层级与防越级授权
+
+### 1. 角色和能力
+
+- 建立 `developer → admin → operations_lead → live_manager → project PM` 五级链；保留 `viewer` 作为旧账号只读兼容角色。
+- 开发者为唯一最高等级；管理员负责用户、权限和系统；运营负责人负责全部直播间的数据源、同步、目标、规则和审计；直播主管负责经营查看和预警处置；各项目 PM 只访问所属直播间。
+- 管理后台按权限点显示具体入口，运营负责人不能看到用户、系统设置、指标和班次配置。
+
+### 2. 服务端安全
+
+- 账号创建、角色调整、凭据修改、停用和删除统一比较操作者与目标角色等级；非开发者不能操作同级或更高等级账号。
+- 角色权限配置使用最小等级上限，禁止把低等级角色改成隐藏管理员；`database.manage` 仅开发者可持有。
+- 旧 `admin → developer` 兼容映射改为 `admin → admin`，种子回填会移除旧管理员被错误附加的开发者角色。
+- 飞书自动开户角色限制在直播主管、项目 PM 和受限查看者。
+
+### 3. 验收
+
+- 后端测试覆盖角色种子、房间范围、管理员管理下级、同级/上级越权拒绝、权限上限和运营负责人分区入口。
+- 前端测试覆盖五级矩阵、禁用态以及运营负责人只看到数据源、预警规则和审计。
+- 更新 `docs/PERMISSIONS.md`、`docs/PROGRESS.md` 与 `docs/TEST_REPORT.md`，最终运行 `make.cmd check` 和 `make.cmd verify-production`。

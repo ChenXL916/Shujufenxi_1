@@ -161,6 +161,43 @@ test('普通业务账号只显示被授权的分析和预警入口', async () =>
   expect(screen.queryByRole('link', { name: '打开系统设置' })).not.toBeInTheDocument()
 })
 
+test('运营负责人只显示运营管理入口且看不到用户和系统设置', async () => {
+  getCurrentUser.mockResolvedValue({
+    id: 'operations-1',
+    name: '运营负责人',
+    role: 'operations_lead',
+    permissions: [
+      'dashboard.view',
+      'dashboard.export',
+      'alert.view',
+      'alert.manage',
+      'data_source.manage',
+      'sync.run',
+      'roi_target.manage',
+      'alert_rule.manage',
+      'audit.view',
+    ],
+    room_ids: ['room-1'],
+    scope_label: '全部直播间',
+  })
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={['/overview']}>
+        <App />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+
+  expect(await screen.findByText('管理')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: '数据源管理' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: '预警与 ROI 目标' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: '审计日志' })).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: '用户与权限' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: '系统设置' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: '指标字典' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: '班次配置' })).not.toBeInTheDocument()
+})
+
 test('未登录访问共享链接时可用网页账号登录并保留飞书入口', async () => {
   getCurrentUser.mockRejectedValueOnce(new Error('unauthorized'))
   render(

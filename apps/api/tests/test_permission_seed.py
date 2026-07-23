@@ -7,10 +7,12 @@ from app.db.base import Base
 from app.models.entities import (
     Permission,
     Role,
+    RolePermission,
     RoleRoomScope,
     Room,
     RoomResource,
     User,
+    UserRole,
 )
 from app.services.permission_service import seed_permission_reference_data
 
@@ -38,10 +40,13 @@ def test_permission_seed_is_idempotent_and_binds_exact_room_resources() -> None:
 
         assert set(session.scalars(select(Role.role_code))) >= {
             "developer",
+            "admin",
+            "operations_lead",
             "live_manager",
             "water_pm",
             "primer_pm",
             "powder_pm",
+            "viewer",
         }
         assert session.scalar(select(func.count(Permission.id))) == 16
         resources = {
@@ -54,8 +59,14 @@ def test_permission_seed_is_idempotent_and_binds_exact_room_resources() -> None:
             "柏瑞美-散粉": ("powder", "powder_pm"),
         }
         water_role_id = session.scalar(select(Role.id).where(Role.role_code == "water_pm"))
+        admin_role_id = session.scalar(select(Role.id).where(Role.role_code == "admin"))
+        operations_role_id = session.scalar(
+            select(Role.id).where(Role.role_code == "operations_lead")
+        )
         manager_role_id = session.scalar(select(Role.id).where(Role.role_code == "live_manager"))
         assert water_role_id is not None
+        assert admin_role_id is not None
+        assert operations_role_id is not None
         assert manager_role_id is not None
         assert (
             session.scalar(
@@ -69,6 +80,47 @@ def test_permission_seed_is_idempotent_and_binds_exact_room_resources() -> None:
             )
             == 3
         )
+        assert (
+            session.scalar(
+                select(func.count(RoleRoomScope.id)).where(RoleRoomScope.role_id == admin_role_id)
+            )
+            == 3
+        )
+        assert (
+            session.scalar(
+                select(func.count(RoleRoomScope.id)).where(
+                    RoleRoomScope.role_id == operations_role_id
+                )
+            )
+            == 3
+        )
+        admin_permissions = set(
+            session.scalars(
+                select(Permission.permission_code)
+                .join(RolePermission, RolePermission.permission_id == Permission.id)
+                .where(RolePermission.role_id == admin_role_id)
+            )
+        )
+        operations_permissions = set(
+            session.scalars(
+                select(Permission.permission_code)
+                .join(RolePermission, RolePermission.permission_id == Permission.id)
+                .where(RolePermission.role_id == operations_role_id)
+            )
+        )
+        assert "permission.manage" in admin_permissions
+        assert "database.manage" not in admin_permissions
+        assert operations_permissions == {
+            "dashboard.view",
+            "dashboard.export",
+            "alert.view",
+            "alert.manage",
+            "roi_target.manage",
+            "alert_rule.manage",
+            "data_source.manage",
+            "sync.run",
+            "audit.view",
+        }
         assert set(
             session.scalars(select(User.username).where(User.username.like("%_test", escape="!")))
         ) == {
@@ -78,4 +130,41 @@ def test_permission_seed_is_idempotent_and_binds_exact_room_resources() -> None:
             "primer_pm_test",
             "powder_pm_test",
         }
+    engine.dispose()
+
+
+def test_legacy_admin_is_not_kept_as_developer_after_formal_admin_role_is_seeded() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        seed_permission_reference_data(session, None, include_test_accounts=False)
+        developer_role = session.scalar(select(Role).where(Role.role_code == "developer"))
+        assert developer_role is not None
+        legacy_admin = User(
+            feishu_user_id="legacy:admin",
+            username="legacy_admin",
+            name="旧管理员",
+            email=None,
+            password_hash=None,
+            status="active",
+            room_scope_mode="role",
+            role_name="admin",
+            active=True,
+        )
+        session.add(legacy_admin)
+        session.flush()
+        session.add(UserRole(user_id=legacy_admin.id, role_id=developer_role.id))
+        session.commit()
+
+        seed_permission_reference_data(session, None, include_test_accounts=False)
+        role_codes = set(
+            session.scalars(
+                select(Role.role_code)
+                .join(UserRole, UserRole.role_id == Role.id)
+                .where(UserRole.user_id == legacy_admin.id)
+            )
+        )
+
+        assert legacy_admin.role_name == "admin"
+        assert role_codes == {"admin"}
     engine.dispose()
