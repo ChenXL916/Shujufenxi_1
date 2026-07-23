@@ -324,3 +324,5 @@
 - 完整门禁：`make.cmd check` 退出 0。189 个后端测试通过，领域与服务覆盖率 85.87%；18 个前端测试文件/71 个单元测试通过；生产构建生成 22 个 JS Chunk，全部不超过 650 KiB；6 个 Chromium E2E 通过。
 - 生产验证：`make.cmd verify-production` 退出 0，验证 7 个服务、33 张表、迁移、强密钥、生产无 fixture 写入和 Docker 构建路径；本机没有 Docker CLI，容器运行态完成 YAML、路径和安全静态等价验收。
 - 安全边界：自动测试使用内存数据库、隔离 E2E 数据库和 Mock 飞书机器人；发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T064058Z.sqlite3`，大小 70,701,056 字节且 `PRAGMA integrity_check=ok`，未向真实飞书群发送消息。
+- 发布复核：功能提交 `81ffe7d` 已推送至 `ChenXL916/Shujufenxi_1/main`；生产 API 重启后本地和公网 `/ready` 均为 HTTP 200、`ready / feishu`，新主播时段接口在未登录时均返回 HTTP 401。
+- 前端发布：Netlify 入口已切换为 `/assets/index-VYX36Qtp.js`，主播分析分包为 `/assets/AnalysisPage-BYfaX15w.js`；线上资源包含新接口路径和“主播时段明细”界面。

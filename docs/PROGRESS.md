@@ -480,3 +480,5 @@
 - [x] 最终 `make.cmd check` 退出 0：189 个后端测试、18 个前端测试文件/71 个单元测试、22 个不超过 650 KiB 的生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.87%。
 - [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器运行态完成 YAML、路径与安全静态等价验收。
 - [x] 发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T064058Z.sqlite3`，文件为 70,701,056 字节且 `PRAGMA integrity_check=ok`；没有修改正式经营数据，也没有向真实飞书群发送消息。
+- [x] 功能提交 `81ffe7d` 已推送至 `ChenXL916/Shujufenxi_1/main`；生产 API 重启后，本地与公网 `/ready` 均返回 `ready / feishu`，未登录访问主播时段接口均返回 HTTP 401。
+- [x] Netlify 已发布主包 `/assets/index-VYX36Qtp.js` 和主播分析分包 `/assets/AnalysisPage-BYfaX15w.js`；线上资源确认包含 `/analytics/anchors/hours` 和“主播时段明细”。
