@@ -179,6 +179,8 @@ async def feishu_callback(
         await client.close()
     identity = grant.identity
     user = db.scalar(select(User).where(User.feishu_user_id == identity.user_id))
+    if user is not None and (not user.active or user.status != "active"):
+        raise HTTPException(status_code=403, detail="账号已停用或删除")
     if user is None and identity.email:
         normalized_email = identity.email.strip().lower()
         invitations = list(

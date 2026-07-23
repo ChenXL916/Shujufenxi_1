@@ -4,23 +4,26 @@ import { message } from 'antd'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, vi } from 'vitest'
 
-const { patchAdminSettings, updatePermissionUserCredentials } = vi.hoisted(() => ({
-  patchAdminSettings: vi.fn().mockResolvedValue({
-    live_sync_interval_minutes: 5,
-    schedule_sync_interval_minutes: 60,
-    alert_delay_minutes: 15,
-    daily_summary_time: '09:00',
-    feishu_app_configured: true,
-    feishu_bot_configured: true,
-    feishu_bot_webhook_configured: true,
-    feishu_bot_signing_secret_configured: false,
-    feishu_bot_chat_configured: false,
-    feishu_auto_provision_enabled: true,
-    feishu_auto_provision_role: 'live_manager',
-    feishu_auto_provision_role_options: [{ value: 'live_manager', label: '直播主管' }],
+const { deletePermissionUser, patchAdminSettings, updatePermissionUserCredentials } = vi.hoisted(
+  () => ({
+    deletePermissionUser: vi.fn().mockResolvedValue(undefined),
+    patchAdminSettings: vi.fn().mockResolvedValue({
+      live_sync_interval_minutes: 5,
+      schedule_sync_interval_minutes: 60,
+      alert_delay_minutes: 15,
+      daily_summary_time: '09:00',
+      feishu_app_configured: true,
+      feishu_bot_configured: true,
+      feishu_bot_webhook_configured: true,
+      feishu_bot_signing_secret_configured: false,
+      feishu_bot_chat_configured: false,
+      feishu_auto_provision_enabled: true,
+      feishu_auto_provision_role: 'live_manager',
+      feishu_auto_provision_role_options: [{ value: 'live_manager', label: '直播主管' }],
+    }),
+    updatePermissionUserCredentials: vi.fn().mockResolvedValue({}),
   }),
-  updatePermissionUserCredentials: vi.fn().mockResolvedValue({}),
-}))
+)
 
 vi.mock('@/api/client', () => ({
   getAdminSettings: vi.fn().mockResolvedValue({
@@ -44,7 +47,7 @@ vi.mock('@/api/client', () => ({
   updateHourlyComparisonRule: vi.fn(),
   getAdminRows: vi.fn().mockResolvedValue([]),
   getPermissionOverview: vi.fn().mockResolvedValue({
-    current_actor: null,
+    current_actor: 'water-user',
     users: [
       {
         id: 'water-user',
@@ -111,6 +114,7 @@ vi.mock('@/api/client', () => ({
     feishu_groups: [],
   }),
   createPermissionUser: vi.fn(),
+  deletePermissionUser,
   resetPermissionUserPassword: vi.fn(),
   updatePermissionUserCredentials,
   updatePermissionUserAccess: vi.fn(),
@@ -194,6 +198,10 @@ test('用户与权限页展示五角色、权限矩阵、直播间和飞书群�
   expect(screen.getByText('网页账号已启用')).toBeInTheDocument()
   expect(screen.getAllByRole('button', { name: /账号密码/ })).toHaveLength(2)
 
+  const currentUserRow = screen.getByText('水散粉PM测试账号').closest('tr')
+  expect(currentUserRow).not.toBeNull()
+  expect(within(currentUserRow as HTMLElement).getByRole('button', { name: /删除/ })).toBeDisabled()
+
   const feishuOnlyRow = screen.getByText('飞书用户待开通网页登录').closest('tr')
   expect(feishuOnlyRow).not.toBeNull()
   const credentialsButton = within(feishuOnlyRow as HTMLElement).getByRole('button', {
@@ -217,6 +225,14 @@ test('用户与权限页展示五角色、权限矩阵、直播间和飞书群�
       password: 'Feishu-viewer-password-2026',
     }),
   )
+  await waitFor(() => expect(screen.queryByLabelText('网页登录名')).not.toBeInTheDocument())
+
+  const refreshedFeishuRow = screen.getByText('飞书用户待开通网页登录').closest('tr')
+  expect(refreshedFeishuRow).not.toBeNull()
+  fireEvent.click(within(refreshedFeishuRow as HTMLElement).getByRole('button', { name: /删除/ }))
+  expect(await screen.findByText('确认删除用户“飞书用户待开通网页登录”？')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '确认删除' }))
+  await waitFor(() => expect(deletePermissionUser.mock.calls[0]?.[0]).toBe('feishu-only-user'))
 
   fireEvent.click(screen.getByRole('button', { name: /新增用户/ }))
   expect(await screen.findByLabelText('初始密码')).toHaveAttribute('type', 'password')

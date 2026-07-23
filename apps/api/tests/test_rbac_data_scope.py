@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi.testclient import TestClient
@@ -15,15 +16,19 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.models.entities import (
+    AuditLog,
+    HourlyComparisonRule,
     Permission,
     PermissionAuditLog,
     Role,
     RolePermission,
     RoleRoomScope,
     Room,
+    RoomMetricTarget,
     RoomResource,
     User,
     UserRole,
+    UserRoomPermission,
 )
 from app.services.permission_service import seed_permission_reference_data
 
@@ -331,12 +336,94 @@ def test_developer_manages_web_account_credentials_without_exposing_hash() -> No
         with Session(engine) as session:
             stored = session.get(User, UUID(user_id))
             assert stored is not None
+            stored.feishu_user_id = "ou_deleted_user"
             stored_hash = stored.password_hash
             audits = list(
                 session.scalars(
                     select(PermissionAuditLog).where(PermissionAuditLog.target_user_id == stored.id)
                 )
             )
+            audit_actions = {audit.action for audit in audits}
+            credential_audit_values = [
+                (audit.before_value, audit.after_value)
+                for audit in audits
+                if audit.action == "user_credentials_updated"
+            ]
+            metric_target = RoomMetricTarget(
+                room_id=None,
+                room_name=None,
+                product_category=None,
+                metric_code="period_overall_roi",
+                target_value=Decimal("2.50"),
+                effective_start_date=None,
+                effective_end_date=None,
+                enabled=True,
+                updated_by=stored.id,
+            )
+            comparison_rule = HourlyComparisonRule(
+                name="保留删除用户历史引用",
+                created_by=stored.id,
+                updated_by=stored.id,
+            )
+            general_audit = AuditLog(
+                user_id=stored.id,
+                action="test_user_history",
+                object_type="user",
+                object_id=str(stored.id),
+                before_summary=None,
+                after_summary=None,
+                ip_address=None,
+            )
+            session.add_all([metric_target, comparison_rule, general_audit])
+            session.commit()
+            metric_target_id = metric_target.id
+            comparison_rule_id = comparison_rule.id
+            general_audit_id = general_audit.id
+
+        self_delete = client.delete(
+            f"/api/v1/admin/permissions/users/{developer_id}",
+            headers=headers,
+        )
+        deleted = client.delete(
+            f"/api/v1/admin/permissions/users/{user_id}",
+            headers=headers,
+        )
+        overview_after_delete = client.get("/api/v1/admin/permissions/overview")
+        with Session(engine) as session:
+            deleted_user = session.get(User, UUID(user_id))
+            remaining_roles = list(
+                session.scalars(select(UserRole).where(UserRole.user_id == UUID(user_id)))
+            )
+            remaining_room_scope = list(
+                session.scalars(
+                    select(UserRoomPermission).where(UserRoomPermission.user_id == UUID(user_id))
+                )
+            )
+            kept_target = session.get(RoomMetricTarget, metric_target_id)
+            kept_rule = session.get(HourlyComparisonRule, comparison_rule_id)
+            kept_general_audit = session.get(AuditLog, general_audit_id)
+            deletion_audit = session.scalar(
+                select(PermissionAuditLog).where(
+                    PermissionAuditLog.action == "user_deleted",
+                    PermissionAuditLog.target_id == user_id,
+                )
+            )
+            old_target_audits = list(
+                session.scalars(
+                    select(PermissionAuditLog).where(
+                        PermissionAuditLog.target_id == user_id,
+                        PermissionAuditLog.action != "user_deleted",
+                    )
+                )
+            )
+
+        client.cookies.set(
+            "live_ops_session",
+            SessionCodec(settings).dumps(
+                {"user_id": user_id, "csrf": "csrf-deleted-user", "auth_mode": "password"}
+            ),
+        )
+        deleted_login = client.get("/auth/me")
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
@@ -359,14 +446,83 @@ def test_developer_manages_web_account_credentials_without_exposing_hash() -> No
     assert not verify_password("Initial-password-2026", stored_hash)
     assert not verify_password("Replacement-password-2026", stored_hash)
     assert verify_password("Final-password-2026", stored_hash)
-    assert {audit.action for audit in audits} == {
+    assert audit_actions == {
         "user_created",
         "user_password_reset",
         "user_credentials_updated",
     }
-    credential_audits = [audit for audit in audits if audit.action == "user_credentials_updated"]
-    assert len(credential_audits) == 2
+    assert len(credential_audit_values) == 2
     assert all(
-        "Final-password-2026" not in repr((audit.before_value, audit.after_value))
-        for audit in credential_audits
+        "Final-password-2026" not in repr(audit_values) for audit_values in credential_audit_values
     )
+    assert self_delete.status_code == 409
+    assert self_delete.json()["detail"] == "不能删除当前登录账号"
+    assert deleted.status_code == 204
+    assert deleted.content == b""
+    assert deleted_user is not None
+    assert deleted_user.active is False
+    assert deleted_user.status == "deleted"
+    assert deleted_user.username is None
+    assert deleted_user.password_hash is None
+    assert deleted_user.email is None
+    assert deleted_user.feishu_user_id == "ou_deleted_user"
+    assert remaining_roles == []
+    assert remaining_room_scope == []
+    assert overview_after_delete.status_code == 200
+    assert user_id not in {item["id"] for item in overview_after_delete.json()["users"]}
+    assert kept_target is not None and kept_target.updated_by == UUID(user_id)
+    assert kept_rule is not None
+    assert kept_rule.created_by == UUID(user_id)
+    assert kept_rule.updated_by == UUID(user_id)
+    assert kept_general_audit is not None and kept_general_audit.user_id == UUID(user_id)
+    assert deletion_audit is not None
+    assert deletion_audit.user_id == developer_id
+    assert deletion_audit.target_user_id == UUID(user_id)
+    assert deletion_audit.before_value is not None
+    assert deletion_audit.before_value["username"] == "final.viewer"
+    assert deletion_audit.after_value == {
+        "deleted": True,
+        "feishu_identity_blocked": True,
+    }
+    assert old_target_audits
+    assert all(audit.target_user_id == UUID(user_id) for audit in old_target_audits)
+    assert deleted_login.status_code == 401
+
+
+def test_last_active_developer_cannot_be_deleted() -> None:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        seed_permission_reference_data(session, None)
+        developer = session.scalar(select(User).where(User.username == "developer_test"))
+        assert developer is not None
+        developer_id = developer.id
+
+    settings = Settings(
+        app_env="test",
+        dev_auth_bypass=True,
+        jwt_secret="last-developer-delete-test-secret",  # noqa: S106
+    )
+
+    def override_db() -> Generator[Session, None, None]:
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_settings] = lambda: settings
+    client = TestClient(app)
+    try:
+        rejected = client.delete(f"/api/v1/admin/permissions/users/{developer_id}")
+        with Session(engine) as session:
+            preserved = session.get(User, developer_id)
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+    assert rejected.status_code == 409
+    assert rejected.json()["detail"] == "不能停用或移除最后一个开发者"
+    assert preserved is not None

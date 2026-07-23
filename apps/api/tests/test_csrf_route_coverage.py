@@ -41,5 +41,5 @@ def test_every_cookie_authenticated_write_route_enforces_csrf() -> None:
         if get_access_scope not in calls and require_csrf not in calls:
             missing.append((sorted(set(route.methods or ()) & UNSAFE_METHODS), route.path))
 
-    assert len(unsafe_routes) == 36
+    assert len(unsafe_routes) == 37
     assert missing == []

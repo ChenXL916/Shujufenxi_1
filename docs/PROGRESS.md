@@ -424,3 +424,16 @@
 - [x] 发布前在线备份生产 SQLite 到 `backups/live_ops_account_admin_20260723T021420Z.sqlite3`，备份库 `PRAGMA integrity_check=ok`；自动测试未修改正式账号、密码或直播业务数据。
 - [x] 功能提交 `9a53a40` 已推送到 `ChenXL916/Shujufenxi_1/main`；生产 API 已加载新路由，本地及公网 `/ready` 均为 `ready / feishu`。Netlify 已发布 `/assets/index-CpY53Vl1.js` 与 `/assets/AdminPage-Rl8bmTIo.js`，线上管理包包含“账号密码”“网页登录名”和权限范围不变提示。
 - [x] 公网安全探针以合法 JSON、无会话调用凭据更新接口返回 HTTP 401，证明新路由已上线且未绕过登录/权限校验；探针没有定位或修改任何真实用户。
+
+## 阶段 29：权限用户安全删除
+
+- [x] 用户管理表格新增“删除”操作和不可逆二次确认；当前登录账号的删除按钮禁用，其余账号可由具备 `permission.manage` 的管理员删除。
+- [x] 新增 `DELETE /api/v1/admin/permissions/users/{user_id}`；服务端拒绝删除当前登录账号和最后一个启用的开发者，继续强制签名会话、`permission.manage` 与 CSRF 校验。
+- [x] 删除会立即清除网页登录名、密码哈希、邮箱、角色与个人直播间范围，使已有会话在下一次请求时失效；直播指标目标、小时对比规则、趋势事件及历史审计记录完整保留。
+- [x] 已删除用户不再出现在管理列表中，但数据库保留不可见的飞书身份注销标记；即使开启首次登录自动开户，该身份再次 OAuth 授权也会返回 403，不会被重新创建为默认角色账号。
+- [x] 删除结果写入脱敏的 `user_deleted` 权限审计，保留原用户的名称、角色和范围快照，不记录密码、密码哈希或其他密钥。
+- [x] 最终定向验证通过：后端 19 项、前端 14 项测试全部通过；Ruff、ESLint、mypy、TypeScript 与 Prettier 检查通过。测试覆盖自删拒绝、最后开发者保护、历史数据保留、旧会话失效、删除身份拒绝自动开户、前端禁用态、二次确认和删除 API 调用。
+- [x] 最终完整 `make.cmd check` 退出 0：187 个后端测试、17 个前端文件/67 个单元测试、22 个不超过 650 KiB 的生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.87%。
+- [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器部分完成等价 YAML、路径与安全静态校验。
+- [x] 发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T035151Z.sqlite3`；备份库 `PRAGMA integrity_check=ok`，包含 7 个用户和 12 条权限审计，自动测试未删除或修改任何正式用户。
+- [ ] 功能提交、生产 API 重启、Netlify 发布与线上安全探针。

@@ -1,4 +1,5 @@
 import {
+  DeleteOutlined,
   EditOutlined,
   KeyOutlined,
   PlusOutlined,
@@ -13,6 +14,7 @@ import {
   Input,
   message,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Switch,
@@ -26,6 +28,7 @@ import { useState } from 'react'
 import {
   createFeishuPermissionGroup,
   createPermissionUser,
+  deletePermissionUser,
   getPermissionOverview,
   updateFeishuPermissionGroup,
   updatePermissionRole,
@@ -162,6 +165,14 @@ export function PermissionManagement() {
     onError: (error) =>
       message.error(permissionErrorMessage(error, '账号密码保存失败，请检查输入后重试')),
   })
+  const removeUser = useMutation({
+    mutationFn: deletePermissionUser,
+    onSuccess: async () => {
+      await refresh()
+      message.success('用户已删除，原账号、飞书绑定、角色和个人数据范围已立即失效')
+    },
+    onError: (error) => message.error(permissionErrorMessage(error, '用户删除失败，请稍后重试')),
+  })
   const saveRole = useMutation({
     mutationFn: async (values: RoleFormValues) => {
       if (!roleEditor) throw new Error('未选择角色')
@@ -214,7 +225,13 @@ export function PermissionManagement() {
       key: 'users',
       label: '用户管理',
       children: (
-        <UsersPanel data={data} onEdit={setUserEditor} onEditCredentials={setCredentialsEditor} />
+        <UsersPanel
+          data={data}
+          deletingUserId={removeUser.isPending ? removeUser.variables : undefined}
+          onDelete={(userId) => removeUser.mutate(userId)}
+          onEdit={setUserEditor}
+          onEditCredentials={setCredentialsEditor}
+        />
       ),
     },
     {
@@ -297,10 +314,14 @@ export function PermissionManagement() {
 
 function UsersPanel({
   data,
+  deletingUserId,
+  onDelete,
   onEdit,
   onEditCredentials,
 }: {
   data: PermissionOverview
+  deletingUserId?: string
+  onDelete: (userId: string) => void
   onEdit: (value: PermissionUser | 'new') => void
   onEditCredentials: (value: PermissionUser) => void
 }) {
@@ -390,7 +411,7 @@ function UsersPanel({
           {
             title: '操作',
             fixed: 'right',
-            width: 210,
+            width: 300,
             render: (_, item) => (
               <Space size={4}>
                 <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
@@ -399,6 +420,28 @@ function UsersPanel({
                 <Button size="small" icon={<KeyOutlined />} onClick={() => onEditCredentials(item)}>
                   账号密码
                 </Button>
+                <Popconfirm
+                  title={`确认删除用户“${item.name}”？`}
+                  description="账号和飞书绑定将立即失效；历史业务数据与审计记录会保留。"
+                  okText="确认删除"
+                  cancelText="取消"
+                  okButtonProps={{ danger: true }}
+                  disabled={item.id === data.current_actor}
+                  onConfirm={() => onDelete(item.id)}
+                >
+                  <Button
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    disabled={item.id === data.current_actor}
+                    loading={deletingUserId === item.id}
+                    title={
+                      item.id === data.current_actor ? '不能删除当前登录账号' : `删除${item.name}`
+                    }
+                  >
+                    删除
+                  </Button>
+                </Popconfirm>
               </Space>
             ),
           },

@@ -441,6 +441,82 @@ def test_feishu_callback_rejects_an_uninvited_identity(
     assert user_count == 0
 
 
+def test_feishu_callback_does_not_auto_provision_a_deleted_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        deleted_user = User(
+            name="已删除飞书用户",
+            email=None,
+            feishu_user_id="ou_deleted_identity",
+            username=None,
+            password_hash=None,
+            status="deleted",
+            role_name="deleted",
+            active=False,
+        )
+        session.add(deleted_user)
+        session.commit()
+        deleted_user_id = deleted_user.id
+    settings = Settings(
+        app_env="test",
+        app_base_url="http://testserver",
+        feishu_app_id="cli_test",
+        feishu_app_secret="app-secret",  # noqa: S106
+        jwt_secret="deleted-feishu-user-test-secret",  # noqa: S106
+        feishu_auto_provision_enabled=True,
+        feishu_auto_provision_role="live_manager",
+    )
+    grant = FeishuOAuthGrant(
+        identity=FeishuIdentity("ou_deleted_identity", "试图重新登录", None, None),
+        tokens=FeishuTokenBundle(
+            "access-token",
+            7200,
+            "refresh-token",
+            604800,
+            "offline_access",
+        ),
+    )
+
+    async def exchange_authorization(_self: FeishuOAuthClient, _code: str) -> FeishuOAuthGrant:
+        return grant
+
+    def override_db():  # type: ignore[no-untyped-def]
+        with Session(engine) as session:
+            yield session
+
+    monkeypatch.setattr(FeishuOAuthClient, "exchange_authorization", exchange_authorization)
+    monkeypatch.setattr("app.auth.router.load_runtime_settings", lambda _db: settings)
+    app.dependency_overrides[get_db] = override_db
+    client = TestClient(app)
+    state = "expected-state"
+    client.cookies.set("live_ops_oauth_state", SessionCodec(settings).dumps_state(state))
+    try:
+        response = client.get(
+            f"/auth/feishu/callback?code=authorization-code&state={state}",
+            follow_redirects=False,
+        )
+        with Session(engine) as session:
+            users = session.scalars(select(User)).all()
+            preserved = session.get(User, deleted_user_id)
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "账号已停用或删除"
+    assert len(users) == 1
+    assert preserved is not None
+    assert preserved.status == "deleted"
+    assert preserved.active is False
+
+
 def test_feishu_callback_binds_an_active_email_invitation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

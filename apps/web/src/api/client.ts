@@ -520,6 +520,10 @@ export async function updatePermissionUserCredentials(
   ).data
 }
 
+export async function deletePermissionUser(userId: string): Promise<void> {
+  await client.delete(`/admin/permissions/users/${userId}`)
+}
+
 export async function updatePermissionUserAccess(
   userId: string,
   payload: PermissionUserInput,

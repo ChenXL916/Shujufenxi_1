@@ -4,6 +4,7 @@ import type { AxiosResponse } from 'axios'
 const axiosPost = vi.hoisted(() => vi.fn())
 const axiosGet = vi.hoisted(() => vi.fn())
 const axiosPut = vi.hoisted(() => vi.fn())
+const axiosDelete = vi.hoisted(() => vi.fn())
 const axiosResponseUse = vi.hoisted(() => vi.fn())
 
 vi.mock('axios', () => ({
@@ -16,12 +17,14 @@ vi.mock('axios', () => ({
       post: axiosPost,
       get: axiosGet,
       put: axiosPut,
+      delete: axiosDelete,
     })),
   },
 }))
 
 import {
   buildAnchorTrendParams,
+  deletePermissionUser,
   ensureJsonApiResponse,
   serializeQueryParams,
   syncFeishuNow,
@@ -199,5 +202,15 @@ describe('updatePermissionUserCredentials', () => {
       username: 'new.login',
       password: 'New-password-2026',
     })
+  })
+})
+
+describe('deletePermissionUser', () => {
+  it('deletes the selected user through the protected admin API', async () => {
+    axiosDelete.mockResolvedValueOnce({ status: 204 })
+
+    await expect(deletePermissionUser('user-1')).resolves.toBeUndefined()
+
+    expect(axiosDelete).toHaveBeenCalledWith('/admin/permissions/users/user-1')
   })
 })

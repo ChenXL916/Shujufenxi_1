@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, SecretStr, field_validator
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
@@ -342,7 +342,13 @@ def permission_overview(db: DbSession, access: AdminAccess) -> dict[str, Any]:
         )
     )
     groups = list(db.scalars(select(FeishuGroup).order_by(FeishuGroup.name.asc())))
-    users = list(db.scalars(select(User).order_by(User.username.asc(), User.email.asc())))
+    users = list(
+        db.scalars(
+            select(User)
+            .where(User.status != "deleted")
+            .order_by(User.username.asc(), User.email.asc())
+        )
+    )
     return {
         "current_actor": str(access.user_id) if access.user_id else None,
         "users": [_serialize_user(db, item) for item in users],
@@ -506,6 +512,57 @@ def update_user_credentials(
         raise HTTPException(status_code=409, detail="登录名已被其他用户使用") from exc
     db.refresh(user)
     return _serialize_user(db, user)
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    access: AdminAccess,
+) -> Response:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if access.user_id == user.id:
+        raise HTTPException(status_code=409, detail="不能删除当前登录账号")
+
+    _ensure_developer_remains(db, user, roles=[], active=False)
+    before = _serialize_user(db, user)
+
+    # Preserve an invisible identity tombstone so a deleted Feishu user cannot
+    # be auto-provisioned again on their next OAuth login.
+    db.execute(delete(UserRoomPermission).where(UserRoomPermission.user_id == user.id))
+    db.execute(delete(UserRole).where(UserRole.user_id == user.id))
+    user.username = None
+    user.password_hash = None
+    user.email = None
+    user.avatar_url = None
+    user.active = False
+    user.status = "deleted"
+    user.role_name = "deleted"
+    user.room_scope_mode = "role"
+    try:
+        db.flush()
+        record_permission_audit(
+            db,
+            actor_user_id=access.user_id,
+            action="user_deleted",
+            target_type="user",
+            target_id=str(user_id),
+            target_user_id=user.id,
+            before_value=before,
+            after_value={
+                "deleted": True,
+                "feishu_identity_blocked": bool(user.feishu_user_id),
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="用户仍有关联数据，无法删除") from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/users/{user_id}/access")
