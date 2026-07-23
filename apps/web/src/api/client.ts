@@ -12,6 +12,7 @@ import type {
 import type {
   AnalysisRow,
   AlertEvent,
+  AnchorHourDetailResponse,
   ComparisonRow,
   DashboardFilters,
   DetailResponse,
@@ -301,6 +302,22 @@ export async function getAnalysis(
   return (
     await client.get<AnalysisRow[]>(path, {
       params: { ...params(filters), metric_keys: filters.metricKeys },
+    })
+  ).data
+}
+export async function getAnchorHourDetails(
+  filters: DashboardFilters,
+  page = 1,
+  pageSize = 50,
+): Promise<AnchorHourDetailResponse> {
+  return (
+    await client.get<AnchorHourDetailResponse>('/analytics/anchors/hours', {
+      params: {
+        ...params(filters),
+        metric_keys: filters.metricKeys,
+        page,
+        page_size: pageSize,
+      },
     })
   ).data
 }

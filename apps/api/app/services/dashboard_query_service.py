@@ -298,14 +298,16 @@ class DashboardQueryService:
             raw_payload=point.raw_payload,
         )
 
-    def _facts(self, filters: DashboardFilters, *, complete_only: bool = True) -> list[HourlyFact]:
+    def _fact_query(
+        self, filters: DashboardFilters, *, complete_only: bool = True
+    ) -> Select[tuple[HourlyFact]]:
         query: Select[tuple[HourlyFact]] = select(HourlyFact)
         if complete_only:
             query = query.where(HourlyFact.data_status == "complete")
         allowed = self._effective_room_ids(filters.room_ids)
         if allowed is not None:
             if not allowed:
-                return []
+                return query.where(HourlyFact.id.is_(None))
             query = query.where(HourlyFact.room_id.in_(allowed))
         if filters.start_date:
             query = query.where(HourlyFact.business_date >= filters.start_date)
@@ -317,6 +319,10 @@ class DashboardQueryService:
             query = query.where(HourlyFact.actual_control_canonical.in_(filters.control_names))
         if filters.hour_slots:
             query = query.where(HourlyFact.hour_slot.in_(filters.hour_slots))
+        return query
+
+    def _facts(self, filters: DashboardFilters, *, complete_only: bool = True) -> list[HourlyFact]:
+        query = self._fact_query(filters, complete_only=complete_only)
         facts = list(
             self.session.scalars(query.order_by(HourlyFact.business_date, HourlyFact.hour_order))
         )

@@ -122,6 +122,10 @@ def test_water_pm_role_scope_is_resolved_and_explicit_room_escalation_is_forbidd
             "/api/v1/dashboard/overview",
             params={"room_ids": str(powder_id)},
         )
+        hour_detail_escalation = client.get(
+            "/api/v1/analytics/anchors/hours",
+            params={"room_ids": str(powder_id)},
+        )
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
@@ -130,6 +134,8 @@ def test_water_pm_role_scope_is_resolved_and_explicit_room_escalation_is_forbidd
     assert [room["name"] for room in options.json()["rooms"]] == ["Mistine-水散粉"]
     assert escalation.status_code == 403
     assert escalation.json()["detail"] == "请求包含未授权直播间"
+    assert hour_detail_escalation.status_code == 403
+    assert hour_detail_escalation.json()["detail"] == "请求包含未授权直播间"
 
 
 def test_only_developer_can_change_user_scope_and_change_is_audited() -> None:

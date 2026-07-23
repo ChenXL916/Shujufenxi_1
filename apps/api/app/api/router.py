@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.api.schemas import (
     AlertAcknowledgeRequest,
     AlertRuleRequest,
+    AnchorHourDetailResponse,
     DetailResponse,
     FilterOptionsResponse,
     OverviewResponse,
@@ -145,6 +146,35 @@ def anchor_summary(
     )
     access.assert_rooms(filters.room_ids)
     return AnalysisService(db, CATALOG, access).summary("anchor", filters, tuple(metric_keys or ()))
+
+
+@router.get("/analytics/anchors/hours", response_model=AnchorHourDetailResponse)
+def anchor_hours(
+    db: DbSession,
+    access: DashboardAccess,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    room_ids: Annotated[list[UUID] | None, Query()] = None,
+    anchor_names: Annotated[list[str] | None, Query()] = None,
+    anchor_members: Annotated[list[str] | None, Query()] = None,
+    control_names: Annotated[list[str] | None, Query()] = None,
+    hour_slots: Annotated[list[str] | None, Query()] = None,
+    metric_keys: Annotated[list[str] | None, Query()] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> AnchorHourDetailResponse:
+    filters = filters_from_query(
+        start_date, end_date, room_ids, anchor_names, anchor_members, control_names, hour_slots
+    )
+    access.assert_rooms(filters.room_ids)
+    return AnchorHourDetailResponse.model_validate(
+        AnalysisService(db, CATALOG, access).anchor_hours(
+            filters,
+            tuple(metric_keys or ()),
+            page=page,
+            page_size=page_size,
+        )
+    )
 
 
 @router.get("/analytics/controls/summary")

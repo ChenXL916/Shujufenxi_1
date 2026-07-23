@@ -9,13 +9,13 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from openpyxl import Workbook
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AccessScope
-from app.domain.aggregation import aggregate_metric
+from app.domain.aggregation import MetricObservation, aggregate_metric
 from app.domain.metrics import MetricCatalog
-from app.models.entities import HourlyFact, Room
+from app.models.entities import HourlyFact, HourlyMetric, Room
 from app.services.comparison_service import ComparisonService
 from app.services.dashboard_query_service import DashboardFilters, DashboardQueryService
 
@@ -77,6 +77,94 @@ class AnalysisService:
     def _selected_metrics(self, metric_keys: tuple[str, ...]) -> tuple[str, ...]:
         requested = metric_keys or self.DEFAULT_METRICS
         return tuple(dict.fromkeys(key for key in requested if key in self.catalog.by_key))
+
+    def anchor_hours(
+        self,
+        filters: DashboardFilters,
+        metric_keys: tuple[str, ...] = (),
+        *,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> dict[str, Any]:
+        selected_metrics = self._selected_metrics(metric_keys)
+        if filters.anchor_members:
+            matching_facts = [
+                fact
+                for fact in self.dashboard._facts(filters)
+                if fact.actual_anchor_canonical is not None
+            ]
+            total = len(matching_facts)
+            start = (page - 1) * page_size
+            page_facts = matching_facts[start : start + page_size]
+        else:
+            query = self.dashboard._fact_query(filters).where(
+                HourlyFact.actual_anchor_canonical.is_not(None)
+            )
+            total = int(
+                self.session.scalar(
+                    select(func.count()).select_from(query.order_by(None).subquery())
+                )
+                or 0
+            )
+            page_facts = list(
+                self.session.scalars(
+                    query.order_by(
+                        HourlyFact.business_date.desc(),
+                        HourlyFact.hour_order,
+                        HourlyFact.room_id,
+                        HourlyFact.id,
+                    )
+                    .offset((page - 1) * page_size)
+                    .limit(page_size)
+                )
+            )
+
+        room_names = self.room_names()
+        observations: dict[uuid.UUID, list[MetricObservation]] = defaultdict(list)
+        if page_facts:
+            facts_by_id = {fact.id: fact for fact in page_facts}
+            for metric in self.session.scalars(
+                select(HourlyMetric).where(HourlyMetric.hourly_fact_id.in_(facts_by_id))
+            ):
+                fact = facts_by_id[metric.hourly_fact_id]
+                observations[fact.id].append(
+                    MetricObservation(
+                        room_id=str(fact.room_id),
+                        business_date=fact.business_date,
+                        hour_order=fact.hour_order,
+                        metric_key=metric.metric_key,
+                        value=metric.numeric_value,
+                    )
+                )
+
+        items = [
+            {
+                "key": str(fact.id),
+                "fact_id": fact.id,
+                "business_date": fact.business_date,
+                "hour_slot": fact.hour_slot,
+                "hour_order": fact.hour_order,
+                "room_id": fact.room_id,
+                "room_name": room_names.get(fact.room_id, "未知直播间"),
+                "anchor_name": fact.actual_anchor_canonical or "未标记主播",
+                "control_name": fact.actual_control_canonical,
+                "latest_observed_at": fact.latest_observed_at,
+                "anchor_match_status": fact.anchor_match_status,
+                "data_status": fact.data_status,
+                "metrics": {
+                    metric: aggregate_metric(metric, observations[fact.id], self.catalog)
+                    for metric in selected_metrics
+                },
+            }
+            for fact in page_facts
+        ]
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "metric_keys": list(selected_metrics),
+        }
 
     @staticmethod
     def _sort_value(row: dict[str, Any], metric_keys: tuple[str, ...]) -> Decimal:

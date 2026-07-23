@@ -470,3 +470,13 @@
 - [x] 发布前已通过 SQLite 在线备份正式数据库到 `backups/live_ops_20260723T062447Z.sqlite3`，文件为 70,701,056 字节且 `PRAGMA integrity_check=ok`；自动测试只使用测试配置和隔离 E2E 数据库，未修改正式经营数据。
 - [x] 功能提交 `8ad1eb6` 已推送至 `ChenXL916/Shujufenxi_1/main`；正式 API 已重启，本地和公网 `/ready` 均为 `ready / feishu`，未登录访问新筛选接口在本地和公网都返回 HTTP 401。
 - [x] Netlify 已发布主包 `/assets/index-CgkB2sMz.js`、总览分包 `/assets/OverviewPage-CPeIo3fy.js` 和主播分析分包 `/assets/AnalysisPage-BDA7J2KT.js`；线上主播分析包确认包含成交人数指标与动态筛选逻辑。
+
+## 阶段 32：主播逐时段数据明细
+
+- [x] 新增 `/api/v1/analytics/anchors/hours` 分页接口，返回日期、自然小时、直播间、主播、场控及所选全部指标；查询复用标准小时事实、指标字典和服务端直播间权限。
+- [x] 主播分析页新增“主播时段明细”表，默认每页 50 条，可切换 20/50/100/200 条；日期、直播间、主播、主播成员、场控、自然小时和指标筛选同时联动汇总与明细。
+- [x] 主播汇总名称改为可访问的快速筛选按钮；点击后将主播写入 URL、分页回到第一页并只显示该主播的全部时段数据。
+- [x] 定向验证通过：后端主播明细与 RBAC 6 项、前端 API/主播页 14 项、Ruff/ESLint/Prettier、mypy 和 TypeScript 均通过；测试只使用内存库和 Mock 数据，未调用真实飞书群。
+- [x] 最终 `make.cmd check` 退出 0：189 个后端测试、18 个前端测试文件/71 个单元测试、22 个不超过 650 KiB 的生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.87%。
+- [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器运行态完成 YAML、路径与安全静态等价验收。
+- [x] 发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T064058Z.sqlite3`，文件为 70,701,056 字节且 `PRAGMA integrity_check=ok`；没有修改正式经营数据，也没有向真实飞书群发送消息。

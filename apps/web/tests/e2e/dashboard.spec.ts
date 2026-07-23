@@ -75,7 +75,10 @@ test('overview and natural-hour timeline are usable', async ({ page, request }) 
   })
   await page.goto('/anchors?start=2026-07-17&end=2026-07-17&metrics=period_buyers')
   await anchorMetricRequest
-  await expect(page.getByRole('columnheader', { name: '时段成交人数' })).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: '时段成交人数' }).first()).toBeVisible()
+  await expect(page.getByText('主播时段明细', { exact: true })).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: '自然小时' })).toBeVisible()
+  await expect(page.getByText(/当前筛选范围共 \d+ 条时段数据/)).toBeVisible()
   await expect(page).toHaveURL(/metrics=period_buyers/)
 
   await page.getByRole('link', { name: '数据对比' }).click()

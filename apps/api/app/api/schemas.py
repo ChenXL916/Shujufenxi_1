@@ -109,6 +109,30 @@ class TimelineResponse(BaseModel):
     groups: list[TimelineGroup]
 
 
+class AnchorHourDetailItem(BaseModel):
+    key: str
+    fact_id: UUID
+    business_date: date
+    hour_slot: str
+    hour_order: int
+    room_id: UUID
+    room_name: str
+    anchor_name: str
+    control_name: str | None
+    latest_observed_at: datetime | None
+    anchor_match_status: str
+    data_status: str
+    metrics: dict[str, Decimal | None]
+
+
+class AnchorHourDetailResponse(BaseModel):
+    items: list[AnchorHourDetailItem]
+    total: int
+    page: int
+    page_size: int
+    metric_keys: list[str]
+
+
 class HourDescriptorPayload(BaseModel):
     key: str
     label: str

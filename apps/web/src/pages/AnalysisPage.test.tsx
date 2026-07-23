@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
@@ -62,9 +62,32 @@ vi.mock('@/api/client', () => ({
       period_buyers: 8,
     },
   ]),
+  getAnchorHourDetails: vi.fn().mockResolvedValue({
+    items: [
+      {
+        key: 'fact-1',
+        fact_id: 'fact-1',
+        business_date: '2026-07-08',
+        hour_slot: '08-09',
+        hour_order: 8,
+        room_id: 'room-1',
+        room_name: '测试直播间',
+        anchor_name: 'Q-李昕',
+        control_name: '郑荣贵',
+        latest_observed_at: '2026-07-08T09:00:00+08:00',
+        anchor_match_status: 'matched',
+        data_status: 'complete',
+        metrics: { period_buyers: 8 },
+      },
+    ],
+    total: 1,
+    page: 1,
+    page_size: 50,
+    metric_keys: ['period_buyers'],
+  }),
 }))
 
-import { getAnalysis } from '@/api/client'
+import { getAnalysis, getAnchorHourDetails } from '@/api/client'
 import { AnalysisPage } from './AnalysisPage'
 
 test('主播分析按 URL 指标筛选动态显示数据列并传给 API', async () => {
@@ -81,16 +104,37 @@ test('主播分析按 URL 指标筛选动态显示数据列并传给 API', async
     </QueryClientProvider>,
   )
 
-  expect(await screen.findByRole('columnheader', { name: '时段成交人数' })).toBeInTheDocument()
+  expect(await screen.findAllByRole('columnheader', { name: '时段成交人数' })).toHaveLength(2)
   expect(screen.queryByRole('columnheader', { name: '时段整体成交金额' })).not.toBeInTheDocument()
   expect(screen.getByText('已选 1 个指标')).toBeInTheDocument()
   expect(screen.getByRole('combobox', { name: '指标' })).toBeInTheDocument()
   expect(screen.getByLabelText('快捷周期')).toBeInTheDocument()
+  expect(screen.getByText('主播时段明细')).toBeInTheDocument()
+  expect(await screen.findByRole('columnheader', { name: '自然小时' })).toBeInTheDocument()
+  expect(screen.getByRole('cell', { name: '测试直播间' })).toBeInTheDocument()
+  expect(screen.getByText('当前筛选范围共 1 条时段数据')).toBeInTheDocument()
   expect(getAnalysis).toHaveBeenCalledWith(
     'anchors',
     expect.objectContaining({
       roomIds: ['room-1'],
       metricKeys: ['period_buyers'],
     }),
+  )
+  expect(getAnchorHourDetails).toHaveBeenCalledWith(
+    expect.objectContaining({
+      roomIds: ['room-1'],
+      metricKeys: ['period_buyers'],
+    }),
+    1,
+    50,
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: '查看Q-李昕的全部时段数据' }))
+  await waitFor(() =>
+    expect(getAnchorHourDetails).toHaveBeenLastCalledWith(
+      expect.objectContaining({ anchors: ['Q-李昕'] }),
+      1,
+      50,
+    ),
   )
 })

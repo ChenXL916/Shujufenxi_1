@@ -134,6 +134,28 @@ export interface AnalysisRow {
   period_viewers: string | number | null
   period_buyers: string | number | null
 }
+export interface AnchorHourDetailRow {
+  key: string
+  fact_id: string
+  business_date: string
+  hour_slot: string
+  hour_order: number
+  room_id: string
+  room_name: string
+  anchor_name: string
+  control_name: string | null
+  latest_observed_at: string | null
+  anchor_match_status: string
+  data_status: string
+  metrics: Record<string, string | number | null>
+}
+export interface AnchorHourDetailResponse {
+  items: AnchorHourDetailRow[]
+  total: number
+  page: number
+  page_size: number
+  metric_keys: string[]
+}
 export interface ComparisonRow extends ComparisonPayload {
   metric_key: string
   name: string

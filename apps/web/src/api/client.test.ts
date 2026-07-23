@@ -27,6 +27,7 @@ import {
   deletePermissionUser,
   ensureJsonApiResponse,
   getAnalysis,
+  getAnchorHourDetails,
   serializeQueryParams,
   syncFeishuNow,
   updatePermissionUserCredentials,
@@ -153,6 +154,33 @@ describe('getAnalysis', () => {
         control_names: [],
         hour_slots: [],
         metric_keys: ['period_buyers'],
+      },
+    })
+  })
+
+  it('passes every anchor-hour filter and server pagination to the detail API', async () => {
+    axiosGet.mockResolvedValueOnce({
+      data: { items: [], total: 0, page: 2, page_size: 100, metric_keys: ['period_buyers'] },
+    })
+
+    await getAnchorHourDetails(
+      { ...dashboardFilters, anchors: ['Q-李昕'], hours: ['08-09'] },
+      2,
+      100,
+    )
+
+    expect(axiosGet).toHaveBeenCalledWith('/analytics/anchors/hours', {
+      params: {
+        start_date: '2026-07-08',
+        end_date: '2026-07-08',
+        room_ids: [],
+        anchor_names: ['Q-李昕'],
+        anchor_members: [],
+        control_names: [],
+        hour_slots: ['08-09'],
+        metric_keys: ['period_buyers'],
+        page: 2,
+        page_size: 100,
       },
     })
   })

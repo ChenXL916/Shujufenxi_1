@@ -313,3 +313,14 @@
 - 安全边界：发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T062447Z.sqlite3`，大小 70,701,056 字节且 `PRAGMA integrity_check=ok`；后端测试显式使用测试配置，E2E 使用隔离数据库与 Mock 飞书机器人；没有修改正式经营数据，也没有向真实飞书群发送消息。
 - 发布复核：提交 `8ad1eb6` 已推送到 `ChenXL916/Shujufenxi_1/main`；本地与公网 `/ready` 均返回 `ready / feishu`。新主播分析接口在无会话时本地和公网均返回 HTTP 401，证明路由已加载且继续受登录保护。
 - 前端发布：线上入口为 `/assets/index-CgkB2sMz.js`，总览分包为 `/assets/OverviewPage-CPeIo3fy.js`，主播分析分包为 `/assets/AnalysisPage-BDA7J2KT.js`；线上分析分包包含 `period_buyers` 和动态指标筛选实现。
+
+## 2026-07-23 阶段 32：主播逐时段数据明细
+
+- 功能结果：主播分析新增分页“主播时段明细”，展示日期、自然小时、直播间、主播、场控和当前选择的全部指标；支持日/月及 1/3/5/7/15/30 天、直播间、主播、主播成员、场控、自然小时和指标联动筛选。
+- 数据口径：明细只读取已完成的标准小时事实；同一页指标一次批量查询，并复用指标字典的 `sum`、`ratio`、`cost` 聚合规则，避免把 ROI 或成本直接相加。
+- 权限结果：新接口复用服务端直播间范围校验；越权显式请求直播间返回 HTTP 403，空权限范围不会返回其他直播间数据。
+- 交互结果：主播汇总名称可直接点击并写入 URL 的 `anchors` 参数，明细页码同步回到第一页；每页可选 20/50/100/200 条，动态指标列与上方汇总保持一致。
+- 定向验证：后端主播明细与 RBAC 共 6 passed；前端 API client 与主播页共 14 passed；Ruff、ESLint、Prettier、mypy 和 TypeScript 全部通过。
+- 完整门禁：`make.cmd check` 退出 0。189 个后端测试通过，领域与服务覆盖率 85.87%；18 个前端测试文件/71 个单元测试通过；生产构建生成 22 个 JS Chunk，全部不超过 650 KiB；6 个 Chromium E2E 通过。
+- 生产验证：`make.cmd verify-production` 退出 0，验证 7 个服务、33 张表、迁移、强密钥、生产无 fixture 写入和 Docker 构建路径；本机没有 Docker CLI，容器运行态完成 YAML、路径和安全静态等价验收。
+- 安全边界：自动测试使用内存数据库、隔离 E2E 数据库和 Mock 飞书机器人；发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T064058Z.sqlite3`，大小 70,701,056 字节且 `PRAGMA integrity_check=ok`，未向真实飞书群发送消息。

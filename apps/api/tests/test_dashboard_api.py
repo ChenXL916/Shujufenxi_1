@@ -378,6 +378,18 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
                 ("metric_keys", "period_buyers"),
             ],
         )
+        buyer_only_anchor_hours = client.get(
+            "/api/v1/analytics/anchors/hours",
+            params=[
+                ("start_date", "2026-07-08"),
+                ("end_date", "2026-07-08"),
+                ("anchor_names", "Q-李昕"),
+                ("hour_slots", "08-09"),
+                ("metric_keys", "period_buyers"),
+                ("page", "1"),
+                ("page_size", "20"),
+            ],
+        )
         pivot = client.get(
             "/api/v1/pivot/anchor-control",
             params={"start_date": "2026-07-08", "end_date": "2026-07-08"},
@@ -403,6 +415,9 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
         ]
         filtered_anchors = client.get(
             "/api/v1/analytics/anchors/summary", params=empty_filter_params
+        )
+        filtered_anchor_hours = client.get(
+            "/api/v1/analytics/anchors/hours", params=empty_filter_params
         )
         filtered_controls = client.get(
             "/api/v1/analytics/controls/summary", params=empty_filter_params
@@ -471,6 +486,19 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
     assert buyer_only_anchors.status_code == 200
     assert Decimal(str(buyer_only_anchors.json()[0]["period_buyers"])) == Decimal("8")
     assert "period_overall_amount" not in buyer_only_anchors.json()[0]
+    assert buyer_only_anchor_hours.status_code == 200
+    assert buyer_only_anchor_hours.json()["total"] == 1
+    assert buyer_only_anchor_hours.json()["page"] == 1
+    assert buyer_only_anchor_hours.json()["page_size"] == 20
+    assert buyer_only_anchor_hours.json()["metric_keys"] == ["period_buyers"]
+    anchor_hour = buyer_only_anchor_hours.json()["items"][0]
+    assert anchor_hour["business_date"] == "2026-07-08"
+    assert anchor_hour["hour_slot"] == "08-09"
+    assert anchor_hour["room_name"] == "动态测试直播间"
+    assert anchor_hour["anchor_name"] == "Q-李昕"
+    assert anchor_hour["control_name"] == "郑荣贵"
+    assert Decimal(str(anchor_hour["metrics"]["period_buyers"])) == Decimal("8")
+    assert "period_overall_amount" not in anchor_hour["metrics"]
     assert pivot.json()[0]["children"][0]["level"] == "control"
     assert exported.status_code == 200
     assert exported.content.startswith(b"PK")
@@ -478,6 +506,9 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
     assert filtered_pairings.status_code == filtered_comparison.status_code == 200
     assert filtered_pivot.status_code == filtered_export.status_code == 200
     assert filtered_anchors.json() == []
+    assert filtered_anchor_hours.status_code == 200
+    assert filtered_anchor_hours.json()["total"] == 0
+    assert filtered_anchor_hours.json()["items"] == []
     assert filtered_controls.json() == []
     assert filtered_pairings.json() == []
     assert filtered_comparison.json()[0]["current_value"] is None

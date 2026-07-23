@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { Card, Space, Table } from 'antd'
-import { useMemo } from 'react'
-import { getAnalysis, getFilterOptions } from '@/api/client'
+import { Button, Card, Space, Table } from 'antd'
+import { useCallback, useMemo, useState } from 'react'
+import { getAnalysis, getAnchorHourDetails, getFilterOptions } from '@/api/client'
 import { FilterBar } from '@/components/FilterBar'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyPanel, ErrorPanel, LoadingPanel } from '@/components/StatePanel'
 import { useDashboardFilters } from '@/hooks/useDashboardFilters'
-import type { AnalysisRow } from '@/types/dashboard'
+import type { AnalysisRow, AnchorHourDetailRow, DashboardFilters } from '@/types/dashboard'
 import { formatMetric } from '@/utils/format'
 
 const DEFAULT_ANALYSIS_METRICS = [
@@ -28,11 +28,29 @@ const copy = {
 
 export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' | 'pairings' }) {
   const { filters, update, reset } = useDashboardFilters()
+  const [detailPage, setDetailPage] = useState(1)
+  const [detailPageSize, setDetailPageSize] = useState(50)
+  const updateFilters = useCallback(
+    (patch: Partial<DashboardFilters>) => {
+      setDetailPage(1)
+      update(patch)
+    },
+    [update],
+  )
+  const resetFilters = useCallback(() => {
+    setDetailPage(1)
+    reset()
+  }, [reset])
   const options = useQuery({ queryKey: ['filter-options'], queryFn: getFilterOptions })
   const analysis = useQuery({
     queryKey: ['analysis', dimension, filters],
     queryFn: () => getAnalysis(dimension, filters),
     enabled: Boolean(filters.startDate),
+  })
+  const anchorHours = useQuery({
+    queryKey: ['anchor-hours', filters, detailPage, detailPageSize],
+    queryFn: () => getAnchorHourDetails(filters, detailPage, detailPageSize),
+    enabled: dimension === 'anchors' && Boolean(filters.startDate),
   })
   const [title, subtitle] = copy[dimension]
   const selectedMetricKeys = useMemo(
@@ -53,6 +71,20 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
         dataIndex: 'name',
         fixed: 'left' as const,
         width: 180,
+        render: (value: string) =>
+          dimension === 'anchors' ? (
+            <Button
+              type="link"
+              className="anchor-summary-action"
+              aria-label={`查看${value}的全部时段数据`}
+              title={`查看${value}的全部时段数据`}
+              onClick={() => updateFilters({ anchors: [value] })}
+            >
+              {value}
+            </Button>
+          ) : (
+            value
+          ),
       },
       { title: '有效小时', dataIndex: 'valid_hours', align: 'right' as const, width: 100 },
       { title: '直播间数', dataIndex: 'room_count', align: 'right' as const, width: 100 },
@@ -65,7 +97,40 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
           formatMetric(value, metric.unit, metric.precision),
       })),
     ],
-    [dimension, selectedMetrics],
+    [dimension, selectedMetrics, updateFilters],
+  )
+  const anchorHourColumns = useMemo(
+    () => [
+      {
+        title: '日期',
+        dataIndex: 'business_date',
+        fixed: 'left' as const,
+        width: 112,
+      },
+      {
+        title: '自然小时',
+        dataIndex: 'hour_slot',
+        fixed: 'left' as const,
+        width: 96,
+      },
+      { title: '直播间', dataIndex: 'room_name', width: 160 },
+      { title: '主播', dataIndex: 'anchor_name', width: 150 },
+      {
+        title: '场控',
+        dataIndex: 'control_name',
+        width: 120,
+        render: (value: string | null) => value ?? '—',
+      },
+      ...selectedMetrics.map((metric) => ({
+        title: metric.name,
+        key: metric.key,
+        align: 'right' as const,
+        width: 150,
+        render: (_: unknown, row: AnchorHourDetailRow) =>
+          formatMetric(row.metrics[metric.key] ?? null, metric.unit, metric.precision),
+      })),
+    ],
+    [selectedMetrics],
   )
   return (
     <Space orientation="vertical" size={16} className="page-stack">
@@ -73,8 +138,8 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
       <FilterBar
         options={options.data}
         filters={filters}
-        update={update}
-        reset={reset}
+        update={updateFilters}
+        reset={resetFilters}
         showMetrics
         showGrain={false}
         showPeriodPresets
@@ -101,6 +166,45 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
           />
         )}
       </Card>
+      {dimension === 'anchors' ? (
+        <Card
+          className="data-card"
+          title="主播时段明细"
+          extra={
+            anchorHours.data
+              ? `当前筛选范围共 ${anchorHours.data.total} 条时段数据`
+              : '按当前筛选加载全部时段'
+          }
+        >
+          {anchorHours.isLoading ? (
+            <LoadingPanel />
+          ) : anchorHours.isError ? (
+            <ErrorPanel onRetry={() => void anchorHours.refetch()} />
+          ) : !anchorHours.data?.items.length ? (
+            <EmptyPanel />
+          ) : (
+            <Table<AnchorHourDetailRow>
+              rowKey="key"
+              sticky
+              scroll={{ x: 638 + selectedMetrics.length * 150, y: 620 }}
+              dataSource={anchorHours.data.items}
+              columns={anchorHourColumns}
+              pagination={{
+                current: detailPage,
+                pageSize: detailPageSize,
+                total: anchorHours.data.total,
+                showSizeChanger: true,
+                pageSizeOptions: [20, 50, 100, 200],
+                showTotal: (total) => `共 ${total} 条时段数据`,
+                onChange: (page, pageSize) => {
+                  setDetailPage(pageSize === detailPageSize ? page : 1)
+                  setDetailPageSize(pageSize)
+                },
+              }}
+            />
+          )}
+        </Card>
+      ) : null}
     </Space>
   )
 }
