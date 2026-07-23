@@ -25,6 +25,7 @@ class MetricOption(BaseModel):
     denominator: str | None
     direction: str
     default_visible: bool
+    analysis_default: bool
     supports_hourly_trend: bool
     supports_kline: bool
     supports_alerts: bool

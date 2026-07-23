@@ -23,18 +23,6 @@ Dimension = Literal["anchor", "control", "pairing"]
 
 
 class AnalysisService:
-    DEFAULT_METRICS = (
-        "period_overall_amount",
-        "period_spend",
-        "period_overall_roi",
-        "period_net_roi",
-        "period_order_count",
-        "period_overall_order_cost",
-        "period_viewers",
-        "period_buyers",
-    )
-    METRICS = DEFAULT_METRICS
-
     def __init__(
         self,
         session: Session,
@@ -64,7 +52,7 @@ class AnalysisService:
             observations = self.dashboard._observations(group)
             row: dict[str, Any] = {"key": label, "name": label, "valid_hours": len(group)}
             for metric in selected_metrics:
-                row[metric] = aggregate_metric(metric, observations, self.catalog)
+                row[metric] = self._analysis_metric_value(metric, observations)
             rooms = {str(fact.room_id) for fact in group}
             row["room_count"] = len(rooms)
             rows.append(row)
@@ -75,8 +63,27 @@ class AnalysisService:
         )
 
     def _selected_metrics(self, metric_keys: tuple[str, ...]) -> tuple[str, ...]:
-        requested = metric_keys or self.DEFAULT_METRICS
+        requested = metric_keys or tuple(
+            spec.key for spec in self.catalog.specs if spec.analysis_default
+        )
         return tuple(dict.fromkeys(key for key in requested if key in self.catalog.by_key))
+
+    def _analysis_metric_value(
+        self,
+        metric_key: str,
+        observations: list[MetricObservation],
+    ) -> Decimal | None:
+        spec = self.catalog.by_key[metric_key]
+        if spec.aggregation != "NONE":
+            return aggregate_metric(metric_key, observations, self.catalog)
+        relevant = [
+            item
+            for item in observations
+            if item.metric_key == metric_key and item.value is not None
+        ]
+        if not relevant:
+            return None
+        return max(relevant, key=lambda item: (item.business_date, item.hour_order)).value
 
     def anchor_hours(
         self,
@@ -152,7 +159,7 @@ class AnalysisService:
                 "anchor_match_status": fact.anchor_match_status,
                 "data_status": fact.data_status,
                 "metrics": {
-                    metric: aggregate_metric(metric, observations[fact.id], self.catalog)
+                    metric: self._analysis_metric_value(metric, observations[fact.id])
                     for metric in selected_metrics
                 },
             }
@@ -300,8 +307,8 @@ class AnalysisService:
             "label": label,
             "valid_hours": len(facts),
             **{
-                metric: aggregate_metric(metric, observations, self.catalog)
-                for metric in self.METRICS
+                metric: self._analysis_metric_value(metric, observations)
+                for metric in self._selected_metrics(())
             },
         }
 

@@ -9,17 +9,6 @@ import { useDashboardFilters } from '@/hooks/useDashboardFilters'
 import type { AnalysisRow, AnchorHourDetailRow, DashboardFilters } from '@/types/dashboard'
 import { formatMetric } from '@/utils/format'
 
-const DEFAULT_ANALYSIS_METRICS = [
-  'period_overall_amount',
-  'period_spend',
-  'period_overall_roi',
-  'period_net_roi',
-  'period_order_count',
-  'period_overall_order_cost',
-  'period_viewers',
-  'period_buyers',
-] as const
-
 const copy = {
   anchors: ['主播分析', '排名至少结合有效小时与消耗门槛判断，不把短样本直接当成结论。'],
   controls: ['场控分析', '展示搭配表现与排班状态，不把相关关系表述为因果关系。'],
@@ -42,21 +31,30 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
     reset()
   }, [reset])
   const options = useQuery({ queryKey: ['filter-options'], queryFn: getFilterOptions })
+  const defaultMetricKeys = useMemo(
+    () =>
+      options.data?.metrics.filter((metric) => metric.analysis_default).map(({ key }) => key) ?? [],
+    [options.data?.metrics],
+  )
+  const selectedMetricKeys = useMemo(
+    () => (filters.metricKeys.length ? filters.metricKeys : defaultMetricKeys),
+    [defaultMetricKeys, filters.metricKeys],
+  )
+  const analysisFilters = useMemo(
+    () => ({ ...filters, metricKeys: selectedMetricKeys }),
+    [filters, selectedMetricKeys],
+  )
   const analysis = useQuery({
-    queryKey: ['analysis', dimension, filters],
-    queryFn: () => getAnalysis(dimension, filters),
-    enabled: Boolean(filters.startDate),
+    queryKey: ['analysis', dimension, analysisFilters],
+    queryFn: () => getAnalysis(dimension, analysisFilters),
+    enabled: Boolean(options.data && filters.startDate),
   })
   const anchorHours = useQuery({
-    queryKey: ['anchor-hours', filters, detailPage, detailPageSize],
-    queryFn: () => getAnchorHourDetails(filters, detailPage, detailPageSize),
-    enabled: dimension === 'anchors' && Boolean(filters.startDate),
+    queryKey: ['anchor-hours', analysisFilters, detailPage, detailPageSize],
+    queryFn: () => getAnchorHourDetails(analysisFilters, detailPage, detailPageSize),
+    enabled: dimension === 'anchors' && Boolean(options.data && filters.startDate),
   })
   const [title, subtitle] = copy[dimension]
-  const selectedMetricKeys = useMemo(
-    () => (filters.metricKeys.length ? filters.metricKeys : [...DEFAULT_ANALYSIS_METRICS]),
-    [filters.metricKeys],
-  )
   const selectedMetrics = useMemo(
     () =>
       selectedMetricKeys
@@ -89,7 +87,7 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
       { title: '有效小时', dataIndex: 'valid_hours', align: 'right' as const, width: 100 },
       { title: '直播间数', dataIndex: 'room_count', align: 'right' as const, width: 100 },
       ...selectedMetrics.map((metric) => ({
-        title: metric.name,
+        title: `${metric.name}${metric.aggregation === 'NONE' ? '（最近时段）' : ''}`,
         dataIndex: metric.key,
         align: 'right' as const,
         width: 150,
@@ -137,7 +135,7 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
       <PageHeader title={title} description={subtitle} eyebrow="PEOPLE PERFORMANCE" />
       <FilterBar
         options={options.data}
-        filters={filters}
+        filters={analysisFilters}
         update={updateFilters}
         reset={resetFilters}
         showMetrics

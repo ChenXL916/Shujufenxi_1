@@ -25,6 +25,7 @@ const analysisOptions = vi.hoisted(() => ({
       denominator: null,
       direction: 'higher_better',
       default_visible: false,
+      analysis_default: true,
       supports_hourly_trend: true,
       supports_kline: true,
       supports_alerts: false,
@@ -42,9 +43,46 @@ const analysisOptions = vi.hoisted(() => ({
       denominator: null,
       direction: 'higher_better',
       default_visible: false,
+      analysis_default: true,
       supports_hourly_trend: true,
       supports_kline: true,
       supports_alerts: false,
+      is_cumulative: false,
+    },
+    {
+      key: 'period_impression_view_rate',
+      name: '时段曝光-观看率(人数）',
+      category: '转化',
+      unit: 'percent',
+      precision: 2,
+      scope: 'period',
+      aggregation: 'NONE',
+      numerator: null,
+      denominator: null,
+      direction: 'higher_better',
+      default_visible: false,
+      analysis_default: true,
+      supports_hourly_trend: false,
+      supports_kline: false,
+      supports_alerts: false,
+      is_cumulative: false,
+    },
+    {
+      key: 'period_spend',
+      name: '时段消耗',
+      category: '消耗',
+      unit: 'currency',
+      precision: 2,
+      scope: 'period',
+      aggregation: 'SUM',
+      numerator: null,
+      denominator: null,
+      direction: 'contextual',
+      default_visible: true,
+      analysis_default: false,
+      supports_hourly_trend: true,
+      supports_kline: true,
+      supports_alerts: true,
       is_cumulative: false,
     },
   ],
@@ -59,7 +97,9 @@ vi.mock('@/api/client', () => ({
       name: 'Q-李昕',
       valid_hours: 1,
       room_count: 1,
+      period_overall_amount: 300,
       period_buyers: 8,
+      period_impression_view_rate: 0.25,
     },
   ]),
   getAnchorHourDetails: vi.fn().mockResolvedValue({
@@ -77,7 +117,11 @@ vi.mock('@/api/client', () => ({
         latest_observed_at: '2026-07-08T09:00:00+08:00',
         anchor_match_status: 'matched',
         data_status: 'complete',
-        metrics: { period_buyers: 8 },
+        metrics: {
+          period_overall_amount: 300,
+          period_buyers: 8,
+          period_impression_view_rate: 0.25,
+        },
       },
     ],
     total: 1,
@@ -89,6 +133,44 @@ vi.mock('@/api/client', () => ({
 
 import { getAnalysis, getAnchorHourDetails } from '@/api/client'
 import { AnalysisPage } from './AnalysisPage'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+test('主播分析未指定指标时只默认勾选配置中的分析指标', async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/anchors?start=2026-07-08&end=2026-07-08']}>
+        <AnalysisPage dimension="anchors" />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+
+  expect(await screen.findByText('已选 3 个指标')).toBeInTheDocument()
+  expect(await screen.findAllByRole('columnheader', { name: '时段整体成交金额' })).toHaveLength(2)
+  expect(await screen.findAllByRole('columnheader', { name: '时段成交人数' })).toHaveLength(2)
+  expect(
+    screen.getByRole('columnheader', { name: '时段曝光-观看率(人数）（最近时段）' }),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('columnheader', { name: '时段消耗' })).not.toBeInTheDocument()
+  await waitFor(() =>
+    expect(getAnalysis).toHaveBeenCalledWith(
+      'anchors',
+      expect.objectContaining({
+        metricKeys: ['period_overall_amount', 'period_buyers', 'period_impression_view_rate'],
+      }),
+    ),
+  )
+  expect(getAnchorHourDetails).toHaveBeenCalledWith(
+    expect.objectContaining({
+      metricKeys: ['period_overall_amount', 'period_buyers', 'period_impression_view_rate'],
+    }),
+    1,
+    50,
+  )
+})
 
 test('主播分析按 URL 指标筛选动态显示数据列并传给 API', async () => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })

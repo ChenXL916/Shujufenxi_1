@@ -326,3 +326,14 @@
 - 安全边界：自动测试使用内存数据库、隔离 E2E 数据库和 Mock 飞书机器人；发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T064058Z.sqlite3`，大小 70,701,056 字节且 `PRAGMA integrity_check=ok`，未向真实飞书群发送消息。
 - 发布复核：功能提交 `81ffe7d` 已推送至 `ChenXL916/Shujufenxi_1/main`；生产 API 重启后本地和公网 `/ready` 均为 HTTP 200、`ready / feishu`，新主播时段接口在未登录时均返回 HTTP 401。
 - 前端发布：Netlify 入口已切换为 `/assets/index-VYX36Qtp.js`，主播分析分包为 `/assets/AnalysisPage-BYfaX15w.js`；线上资源包含新接口路径和“主播时段明细”界面。
+
+## 2026-07-23 阶段 33：分析页面默认指标精简
+
+- 默认集合：分析页未带 `metrics` 参数时，按配置默认选择截图中的 20 项，顺序从 `period_gmv` 到 `period_net_order_cost`；`period_spend`“时段消耗”及其他未勾选指标不进入默认集合。
+- 配置隔离：新增独立 `analysis_default` 元数据并随筛选选项 API 返回，不修改经营总览和小时趋势使用的 `default_visible`；前端不再维护重复硬编码列表。
+- 请求一致性：指标选择器、主播/场控/搭配汇总和主播逐时段明细均发送同一默认集合；URL 显式包含 `metrics` 时只显示并请求用户选择项。
+- 转化率口径：带完整分子分母的观看成交率继续按合计分子/分母重算；其余无完整分母的时段转化率不做简单平均，汇总显示最近有效时段并明确标注，逐时段表显示该小时原值。
+- 定向验证：后端默认指标、逐时段值和 RBAC 6 passed；前端主播页与 API client 15 passed；mypy 和 TypeScript 通过。
+- 完整门禁：`make.cmd check` 退出 0。189 个后端测试通过，领域与服务覆盖率 85.90%；18 个前端测试文件/72 个单元测试通过；生产构建生成 22 个 JS Chunk，全部不超过 650 KiB；6 个 Chromium E2E 通过。
+- 生产验证：`make.cmd verify-production` 退出 0，验证 7 个服务、33 张表、迁移、强密钥、生产无 fixture 写入和 Docker 构建路径；本机没有 Docker CLI，容器运行态完成 YAML、路径和安全静态等价验收。
+- 安全边界：自动测试使用内存数据库、隔离 E2E 数据库和 Mock 飞书机器人；发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T072935Z.sqlite3`，大小 70,701,056 字节且 `PRAGMA integrity_check=ok`，未修改正式经营数据或发送真实群消息。

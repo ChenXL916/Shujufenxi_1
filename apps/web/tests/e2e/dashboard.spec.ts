@@ -63,9 +63,22 @@ test('overview and natural-hour timeline are usable', async ({ page, request }) 
   const screenshot = path.resolve(process.cwd(), '../../artifacts/playwright-dashboard.png')
   await page.screenshot({ path: screenshot, fullPage: true })
 
+  const defaultAnchorMetricsRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url())
+    const metrics = url.searchParams.getAll('metric_keys')
+    return (
+      url.pathname === '/api/v1/analytics/anchors/summary' &&
+      metrics.length === 20 &&
+      metrics[0] === 'period_gmv' &&
+      metrics.at(-1) === 'period_net_order_cost' &&
+      !metrics.includes('period_spend')
+    )
+  })
   await page.getByRole('link', { name: '主播分析' }).click()
+  await defaultAnchorMetricsRequest
   await expect(page.getByRole('heading', { name: '主播分析', level: 3 })).toBeVisible()
   await expect(page.locator('.ant-table-row').first()).toBeVisible()
+  await expect(page.getByText('已选 20 个指标')).toBeVisible()
   const anchorMetricRequest = page.waitForRequest((request) => {
     const url = new URL(request.url())
     return (

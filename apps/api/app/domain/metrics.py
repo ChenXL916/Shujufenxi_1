@@ -20,6 +20,7 @@ class MetricSpec:
     numerator: str | None = None
     denominator: str | None = None
     default: bool = False
+    analysis_default: bool = False
     supports_hourly_trend: bool = False
     supports_kline: bool = False
     alertable: bool = False
@@ -56,6 +57,7 @@ class MetricCatalog:
             numerator=str(item["numerator"]) if item.get("numerator") else None,
             denominator=str(item["denominator"]) if item.get("denominator") else None,
             default=bool(item.get("default", False)),
+            analysis_default=bool(item.get("analysis_default", False)),
             supports_hourly_trend=bool(item.get("supports_hourly_trend", default_hourly_support)),
             supports_kline=bool(item.get("supports_kline", default_hourly_support)),
             alertable=bool(item.get("alertable", False)),

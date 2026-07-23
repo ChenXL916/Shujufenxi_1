@@ -120,6 +120,7 @@ class DashboardQueryService:
                     denominator=spec.denominator,
                     direction=spec.direction,
                     default_visible=spec.default,
+                    analysis_default=spec.analysis_default,
                     supports_hourly_trend=spec.supports_hourly_trend,
                     supports_kline=spec.supports_kline,
                     supports_alerts=spec.alertable,

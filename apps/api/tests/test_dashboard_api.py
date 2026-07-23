@@ -25,6 +25,29 @@ from app.models.entities import (
     Room,
 )
 
+EXPECTED_ANALYSIS_DEFAULT_METRICS = [
+    "period_gmv",
+    "period_paid_amount",
+    "period_order_count",
+    "period_avg_order_value",
+    "period_buyers",
+    "period_viewers",
+    "period_view_conversion_rate",
+    "period_impression_view_rate",
+    "period_view_product_impression_rate",
+    "period_product_click_rate",
+    "period_click_conversion_rate",
+    "period_impression_conversion_rate",
+    "period_overall_roi",
+    "period_overall_amount",
+    "period_overall_orders",
+    "period_overall_order_cost",
+    "period_net_roi",
+    "period_net_amount",
+    "period_net_orders",
+    "period_net_order_cost",
+]
+
 
 def unrestricted_test_access() -> AccessScope:
     return AccessScope(
@@ -161,8 +184,11 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
             "period_order_count": "10",
             "period_overall_orders": "10",
             "period_overall_order_cost": "10",
+            "period_net_orders": "5",
+            "period_net_order_cost": "20",
             "period_viewers": "1000",
             "period_buyers": "8",
+            "period_impression_view_rate": "0.25",
         }.items():
             session.add(
                 HourlyMetric(
@@ -370,6 +396,15 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
             "/api/v1/analytics/anchors/summary",
             params={"start_date": "2026-07-08", "end_date": "2026-07-08"},
         )
+        default_anchor_hours = client.get(
+            "/api/v1/analytics/anchors/hours",
+            params={
+                "start_date": "2026-07-08",
+                "end_date": "2026-07-08",
+                "anchor_names": "Q-李昕",
+                "hour_slots": "08-09",
+            },
+        )
         buyer_only_anchors = client.get(
             "/api/v1/analytics/anchors/summary",
             params=[
@@ -450,6 +485,9 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
         == 200
     )
     assert options.json()["rooms"][0]["name"] == "动态测试直播间"
+    assert [
+        item["key"] for item in options.json()["metrics"] if item["analysis_default"]
+    ] == EXPECTED_ANALYSIS_DEFAULT_METRICS
     overview_kpis = overview.json()["kpis"]
     assert [item["metric_key"] for item in overview_kpis] == [
         "period_overall_amount",
@@ -483,6 +521,15 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
     assert anchors.status_code == pivot.status_code == comparison.status_code == 200
     assert anchors.json()[0]["name"] == "Q-李昕"
     assert Decimal(str(anchors.json()[0]["period_buyers"])) == Decimal("8")
+    assert Decimal(str(anchors.json()[0]["period_impression_view_rate"])) == Decimal("0.25")
+    assert "period_spend" not in anchors.json()[0]
+    assert default_anchor_hours.status_code == 200
+    assert default_anchor_hours.json()["metric_keys"] == EXPECTED_ANALYSIS_DEFAULT_METRICS
+    default_anchor_hour = default_anchor_hours.json()["items"][0]
+    assert Decimal(str(default_anchor_hour["metrics"]["period_impression_view_rate"])) == Decimal(
+        "0.25"
+    )
+    assert "period_spend" not in default_anchor_hour["metrics"]
     assert buyer_only_anchors.status_code == 200
     assert Decimal(str(buyer_only_anchors.json()[0]["period_buyers"])) == Decimal("8")
     assert "period_overall_amount" not in buyer_only_anchors.json()[0]

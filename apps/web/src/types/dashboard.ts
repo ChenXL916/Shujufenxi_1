@@ -17,6 +17,7 @@ export interface MetricOption {
   denominator: string | null
   direction: 'higher_better' | 'lower_better' | 'neutral' | 'contextual'
   default_visible: boolean
+  analysis_default: boolean
   supports_hourly_trend: boolean
   supports_kline: boolean
   supports_alerts: boolean
