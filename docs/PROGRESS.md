@@ -468,3 +468,5 @@
 - [x] 最终 `make.cmd check` 退出 0：189 个后端测试、18 个前端测试文件/70 个单元测试、22 个不超过 650 KiB 的生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.89%。
 - [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器运行态采用 YAML、路径和安全静态等价验收。
 - [x] 发布前已通过 SQLite 在线备份正式数据库到 `backups/live_ops_20260723T062447Z.sqlite3`，文件为 70,701,056 字节且 `PRAGMA integrity_check=ok`；自动测试只使用测试配置和隔离 E2E 数据库，未修改正式经营数据。
+- [x] 功能提交 `8ad1eb6` 已推送至 `ChenXL916/Shujufenxi_1/main`；正式 API 已重启，本地和公网 `/ready` 均为 `ready / feishu`，未登录访问新筛选接口在本地和公网都返回 HTTP 401。
+- [x] Netlify 已发布主包 `/assets/index-CgkB2sMz.js`、总览分包 `/assets/OverviewPage-CPeIo3fy.js` 和主播分析分包 `/assets/AnalysisPage-BDA7J2KT.js`；线上主播分析包确认包含成交人数指标与动态筛选逻辑。

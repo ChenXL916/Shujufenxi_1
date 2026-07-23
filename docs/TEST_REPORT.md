@@ -311,3 +311,5 @@
 - 完整门禁：`make.cmd check` 退出 0。189 个后端测试通过，领域与服务覆盖率 85.89%；18 个前端测试文件/70 个单元测试通过；生产构建生成 22 个 JS Chunk，全部不超过 650 KiB；6 个 Chromium E2E 通过。
 - 生产验证：`make.cmd verify-production` 退出 0，验证 7 个服务、33 张表、迁移、强密钥、生产无 fixture 写入和 Docker 构建路径；本机没有 Docker CLI，容器运行态完成 YAML、路径和安全静态等价验收。
 - 安全边界：发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T062447Z.sqlite3`，大小 70,701,056 字节且 `PRAGMA integrity_check=ok`；后端测试显式使用测试配置，E2E 使用隔离数据库与 Mock 飞书机器人；没有修改正式经营数据，也没有向真实飞书群发送消息。
+- 发布复核：提交 `8ad1eb6` 已推送到 `ChenXL916/Shujufenxi_1/main`；本地与公网 `/ready` 均返回 `ready / feishu`。新主播分析接口在无会话时本地和公网均返回 HTTP 401，证明路由已加载且继续受登录保护。
+- 前端发布：线上入口为 `/assets/index-CgkB2sMz.js`，总览分包为 `/assets/OverviewPage-CPeIo3fy.js`，主播分析分包为 `/assets/AnalysisPage-BDA7J2KT.js`；线上分析分包包含 `period_buyers` 和动态指标筛选实现。
