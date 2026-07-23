@@ -283,3 +283,5 @@
 - 完整门禁：最终 `make.cmd check` 退出 0。185 个后端测试通过，领域与服务覆盖率 85.85%；17 个前端测试文件/66 个单元测试通过；生产构建 22 个 JS Chunk 均不超过 650 KiB；6 个 Chromium E2E 通过。
 - 生产验证：`make.cmd verify-production` 退出 0，验证 7 个服务、33 张表、迁移、强密钥、无 fixture 写入及 Docker 构建路径。本机没有 Docker CLI，容器运行态采用 YAML、路径和安全静态等价验收。
 - 数据保护：部署前在线备份 `live_ops_test.db` 到 `backups/live_ops_account_admin_20260723T021420Z.sqlite3`，备份完整性检查为 `ok`；自动测试未修改正式账号、密码或直播经营数据，也未触发真实飞书群推送。
+- 发布复核：提交 `9a53a40` 已推送至 `ChenXL916/Shujufenxi_1/main`；生产 API 无迁移重启后，本地与公网 `/ready` 均返回 `ready / feishu`。Netlify 入口为 `/assets/index-CpY53Vl1.js`，管理页分包 `/assets/AdminPage-Rl8bmTIo.js` 包含“账号密码”“网页登录名”及权限范围保护说明。
+- 公网权限复核：对新凭据接口发送结构合法但无会话的请求返回 HTTP 401，而非 2xx；说明路由已生效并继续由登录、`permission.manage` 与 CSRF 链路保护。该探针使用不存在的全零用户 ID，没有修改生产账号。

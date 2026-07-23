@@ -422,3 +422,5 @@
 - [x] 最终 `make.cmd check` 退出 0：185 个后端测试、17 个前端文件/66 个单元测试、22 个不超过 650 KiB 的生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.85%。
 - [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器部分完成等价静态校验。
 - [x] 发布前在线备份生产 SQLite 到 `backups/live_ops_account_admin_20260723T021420Z.sqlite3`，备份库 `PRAGMA integrity_check=ok`；自动测试未修改正式账号、密码或直播业务数据。
+- [x] 功能提交 `9a53a40` 已推送到 `ChenXL916/Shujufenxi_1/main`；生产 API 已加载新路由，本地及公网 `/ready` 均为 `ready / feishu`。Netlify 已发布 `/assets/index-CpY53Vl1.js` 与 `/assets/AdminPage-Rl8bmTIo.js`，线上管理包包含“账号密码”“网页登录名”和权限范围不变提示。
+- [x] 公网安全探针以合法 JSON、无会话调用凭据更新接口返回 HTTP 401，证明新路由已上线且未绕过登录/权限校验；探针没有定位或修改任何真实用户。
