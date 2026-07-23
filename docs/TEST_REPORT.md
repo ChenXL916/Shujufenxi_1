@@ -368,3 +368,16 @@
 - 安全边界：浏览器测试使用 `e2e.db`、开发认证旁路和空飞书凭据；趋势重算只写隔离数据库，未访问正式经营库，未执行真实同步或飞书群推送。
 - 发布复核：功能提交 `588ee99` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 入口 `/assets/index-D4ioi0n9.js`、共享详情分包 `/assets/DetailScaffold-BLraFtfH.js`、三个页面分包和 `/assets/index-DY3U0702.css` 均返回 HTTP 200。
 - 线上内容：共享分包含“详情状态/详情数值”，总览分包含“核心表现/明细数据”，趋势分包含 `LIVE DATA POINT`，预警分包含“经营对比/事实明细”，样式包含详情操作条、洞察网格和宽指标网格；公网 `/ready` 返回 HTTP 200、`status=ready`、`mode=feishu`，数据库与 Redis 均为 `ok`。
+
+## 2026-07-23 阶段 36：运行目录迁移至 E 盘
+
+- 迁移结果：正式运行目录已由 C 盘迁移到 `E:\直播间数据\codex_live_dashboard_pack`；38,426 个文件、2.670GB 的文件数量、相对路径、总大小和关键 SHA-256 全部匹配，目标 Git 对象库完整。
+- 数据保护：迁移前在线备份和停服备份均保存于 `E:\直播间数据\migration_backups\20260723T093201Z`；`PRAGMA integrity_check=ok`，备份包含 2,384 条小时事实、2,029 条采集点和 8 个用户，配置副本哈希一致。
+- 路径恢复：`.env.tunnel` 的 SQLite 绝对路径已改为 E 盘；Python 3.12.11 虚拟环境按锁文件重建，生产配置为 `APP_ENV=production`、`DEV_AUTH_BYPASS=false`，Redis `PING` 成功。
+- 公网恢复：E 盘 API、本机 8000、原 Cloudflare 源站和 Netlify `/ready` 均为 HTTP 200、`ready / feishu`，数据库与 Redis 为 `ok`；保留原隧道地址，因此没有修改飞书 OAuth 回调或要求重新授权。
+- 完整门禁：`make.cmd check` 退出 0；189/189 后端测试、74/74 前端单测、7/7 Playwright E2E 通过，覆盖率 85.90%，生产构建转换 5,567 个模块，23 个 JS Chunk 全部 ≤650 KiB。
+- 生产验收：`make.cmd verify-production` 退出 0；验证 7 个服务、33 张表、迁移、生产强密钥、关闭开发旁路、无 fixture 写入和 Docker 构建路径。本机没有 Docker CLI，容器运行态为 YAML、路径和安全静态等价验收。
+- 实时同步：E 盘实时循环首轮使用 `user_access_token` 同步四个实绩源 653、655、0、116 条和两个排班源 72、41 条，全部完成；小时事实稳定为 2,384 条。预警重试、旧预警、小时预警和趋势汇总均未产生推送，没有向飞书群发送测试消息。
+- 在线业务：迁移后已有真实线上会话通过 Netlify 成功调用 `/auth/me`、飞书状态、筛选、主播汇总和主播时段明细，全部 HTTP 200；生产库完整性保持 `ok`，账号、角色和权限未变。
+- 磁盘结果：C 盘可用空间由约 11.9GB 增至约 14.5GB；旧目录内容已全部迁出，仅留下被当前 Codex 会话占用的零文件、零字节空目录，关闭本任务后可删除。
+- 已知边界：公网 API 仍通过本机 Cloudflare Quick Tunnel 提供服务；本次迁移保持现有地址和当前正常运行，但电脑关机或隧道退出后的自动恢复需要后续配置固定命名隧道或云服务器。

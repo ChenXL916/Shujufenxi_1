@@ -521,3 +521,18 @@
 - [x] `make.cmd verify-production` 通过：7 个服务、33 张表、迁移、强密钥策略、生产无夹具写入和 Docker 构建路径均有效；本机无 Docker CLI，因此容器运行态采用等价静态校验。
 - [x] 功能提交 `588ee99` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 已发布入口 `/assets/index-D4ioi0n9.js`、共享详情分包 `/assets/DetailScaffold-BLraFtfH.js`、总览分包 `/assets/OverviewPage-D1N6vjxK.js`、趋势分包 `/assets/TimelinePage-maMzaRgT.js`、预警分包 `/assets/AlertsPage-CWw0Sf9d.js` 和样式 `/assets/index-DY3U0702.css`。
 - [x] 五个线上资源均返回 HTTP 200，并包含三类详情的共享结构、中文业务章节及响应式样式标记；公网 `/ready` 返回 HTTP 200、`ready / feishu`，数据库与 Redis 均为 `ok`。
+
+## 阶段 36：运行目录迁移至 E 盘
+
+- [x] 迁移审计完成：源目录约 2.7GB，C 盘剩余约 11.9GB，E 盘剩余约 1.85TB；目标 `E:\直播间数据\codex_live_dashboard_pack` 尚不存在。
+- [x] 确认生产 API 使用 `.env.tunnel` 中指向 C 盘的 SQLite 绝对路径；公网前端通过现有 Cloudflare Quick Tunnel 连接本机 8000 端口。
+- [x] 迁移前在 `E:\直播间数据\migration_backups\20260723T093201Z` 生成在线与停服两份 SQLite 一致性备份；两份均为 `integrity_check=ok`，包含 2,384 条小时事实、2,029 条采集点和 8 个用户，环境配置副本哈希一致。
+- [x] 完整复制并校验 38,426 个文件、总计 2.670GB；源/目标文件数量、相对路径、总大小和关键文件 SHA-256 一致，目标 Git 对象库 `fsck` 通过。
+- [x] `.env.tunnel` 的生产 SQLite 地址已改为 E 盘；Python 3.12.11 虚拟环境按 `uv.lock` 在 E 盘重新创建，FastAPI、SQLAlchemy、Redis 与生产库加载通过。
+- [x] 生产 API 已从 E 盘启动；本机 8000、原 Cloudflare 源站和 Netlify `/ready` 均返回 HTTP 200、`ready / feishu`，数据库与 Redis 均为 `ok`，原飞书 OAuth 回调和公网域名无需改变。
+- [x] C 盘旧目录内容全部迁出，可用空间由约 11.9GB 增至约 14.5GB；当前 Codex 会话仍占用一个零文件、零字节的空目录句柄，关闭本任务后即可删除，不影响磁盘释放或运行。
+- [x] 最终 `make.cmd check` 退出 0：Ruff、ESLint、mypy、TypeScript、Prettier 全部通过；后端 189/189、前端 74/74、Playwright 7/7，覆盖率 85.90%，23 个生产 JS Chunk 均不超过 650 KiB。
+- [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径均有效；本机无 Docker CLI，因此容器运行态采用等价静态校验。
+- [x] E 盘实时循环已启动并完成首轮：四个实绩源分别读取 653、655、0、116 条，两个排班源读取 72、41 条；全部 `completed/user_access_token`，小时事实保持 2,384 条，预警重试、旧预警、小时预警和趋势汇总均为 0 次发送。
+- [x] 迁移后已有线上登录会话通过 Netlify 同源代理成功请求 `/auth/me`、飞书状态、筛选、主播汇总和主播时段明细，均返回 HTTP 200；未修改账号、角色或权限。
+- [x] 运行边界不变：当前公网 API 仍依赖本机和 Cloudflare Quick Tunnel；本次迁移保留了现有隧道地址。若电脑关机或隧道进程退出，24×7 恢复仍需固定命名隧道或云服务器。

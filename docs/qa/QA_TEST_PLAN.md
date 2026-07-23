@@ -6,7 +6,7 @@
 - 执行开始：2026-07-16 17:58:17 +08:00
 - 被测应用版本：0.1.0（后端与前端清单版本）
 - 版本标识：当前Git仓库为未创建首个提交的 unborn `main`，无Commit ID；以锁文件SHA-256和测试时间标识本次快照
-- 仓库：`C:\Users\Administrator\Documents\直播间数据\codex_live_dashboard_pack`
+- 仓库：`E:\直播间数据\codex_live_dashboard_pack`
 - APP URL：`http://127.0.0.1:5173`
 - API URL：`http://127.0.0.1:8000`
 - 本地测试数据库：`live_ops_test.db`（只读运行态审计）
