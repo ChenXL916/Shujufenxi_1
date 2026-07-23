@@ -388,3 +388,10 @@
 - [x] 公网临时随机密码冒烟通过：登录 Cookie 为 30 天且具备 `HttpOnly`、`Secure`、`SameSite=Lax`、根路径属性；`/auth/me` 滚动续期、复制 Cookie 模拟关闭后重开、`live_manager` 三房间范围及退出失效均通过。
 - [x] 冒烟完成后恢复隔离测试账号原密码哈希、最近登录时间与更新时间，并删除本次临时登录审计；复查 `PASSWORD_RESTORED=True`、`SMOKE_AUDIT_RESTORED=True`。
 - [x] 功能提交 `f814d7a` 已推送到 `ChenXL916/Shujufenxi_1` 的 `main`；Netlify 生产站点已切换至 `/assets/index-BcTUAAJW.js`，线上包包含“本设备将保持登录”提示，公网 `/ready` 为 `ready / feishu`。
+
+## 阶段 26：所有者网页登录恢复
+
+- [x] 确认生产库中已有飞书身份“陈佳琪”，角色为 `developer`，账号启用，但此前未配置网页登录名和密码。
+- [x] 在原飞书身份上启用独立网页登录，未新建重复用户，保留原飞书绑定、开发者角色与全部数据权限；密码只交付给所有者，不写入代码、文档、日志或 Git。
+- [x] 操作前生成 SQLite 在线备份 `backups/live_ops_account_20260723T012406Z.sqlite3`，账号变更写入脱敏权限审计。
+- [x] 公网验证通过：密码登录 HTTP 200、`/auth/me` HTTP 200、返回角色 `developer`；退出 HTTP 204，退出后 `/auth/me` HTTP 401。

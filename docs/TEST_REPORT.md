@@ -250,3 +250,11 @@
 - 公网会话冒烟：隔离账号临时随机密码登录 HTTP 200；登录与 `/auth/me` 响应均返回 `Max-Age=2592000`，Cookie 安全属性完整；复制 Cookie 到新客户端模拟浏览器重开后 `/auth/me` HTTP 200，角色为 `live_manager`、范围为 3 个直播间；退出 HTTP 204，退出后 `/auth/me` HTTP 401。
 - 清理复核：冒烟结束后恢复隔离账号原密码哈希、最近登录时间与更新时间，并清理本次新增登录审计；复查 `PASSWORD_RESTORED=True`、`SMOKE_AUDIT_RESTORED=True`，没有记录临时密码或 Cookie 内容。
 - 发布复核：功能提交 `f814d7a` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 生产入口从旧资源切换到 `/assets/index-BcTUAAJW.js`，线上脚本确认包含“本设备将保持登录”，公网 `/ready` 返回 `ready / feishu`。
+
+## 2026-07-23 阶段 26：所有者网页登录恢复
+
+- 生产数据核对：飞书身份“陈佳琪”已存在且启用，角色为 `developer`；不能进入的原因是该身份原先没有网页登录名和密码，并非数据或飞书授权失效。
+- 处理方式：直接在既有身份上启用网页登录，未创建重复用户，原飞书绑定、角色和数据范围保持不变；凭据未写入仓库或测试报告。
+- 数据保护：修改前完成 SQLite 在线备份 `backups/live_ops_account_20260723T012406Z.sqlite3`，并写入不含密码的权限审计记录。
+- 公网冒烟：`POST /auth/password/login` HTTP 200，`GET /auth/me` HTTP 200 且角色为 `developer`；退出 HTTP 204，退出后会话查询 HTTP 401。
+- 变更边界：本阶段仅修改生产账号凭据与审计数据，没有代码、数据库结构或部署配置变更，因此沿用阶段 25 已通过的完整 `make.cmd check` 和 `make.cmd verify-production` 门禁结果。
