@@ -452,3 +452,8 @@
 - [x] 首轮完整门禁发现 `test_models.py` 仍固定断言 6 个角色；更新为 8 个正式/兼容角色后定向复测 5/5，并从头重跑，无跳过失败项。
 - [x] 最终 `make.cmd check` 退出 0：189 个后端测试、17 个前端测试文件/68 个单测、22 个生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.89%。
 - [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器运行态为等价 YAML、路径与安全静态验收。
+- [x] 发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T042946Z.sqlite3`；`PRAGMA integrity_check=ok`，备份包含 7 个用户和原 6 个角色。
+- [x] 正式库只执行权限参考数据种子：角色数由 6 增至 8，新增 `admin` 与 `operations_lead`；没有自动给现有用户分配新角色，现有用户和业务事实未改动。
+- [x] 功能提交 `1b5e5aa` 已推送至 `ChenXL916/Shujufenxi_1/main`；生产 API 已重启，本地和公网 `/ready` 均为 `ready / feishu`。
+- [x] Netlify 已发布主包 `/assets/index-DPPYGmmj.js` 和管理包 `/assets/AdminPage-BSalkNlE.js`；线上包包含 `operations_lead`、五级权限链和同级/上级禁用提示。
+- [x] 使用所有者现有签名会话完成只读公网验收：`/auth/me` 与权限总览均 HTTP 200，返回 `developer`、8 个角色及 500/400/300/200/100 五级顺序；未修改密码、角色或直播数据，未发送飞书群消息。
