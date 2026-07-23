@@ -36,6 +36,7 @@ import type {
   PermissionRole,
   PermissionRoleInput,
   PermissionUser,
+  PermissionUserCredentialsInput,
   PermissionUserInput,
   RoomResource,
   RoomResourceInput,
@@ -507,6 +508,15 @@ export async function resetPermissionUserPassword(
 ): Promise<PermissionUser> {
   return (
     await client.put<PermissionUser>(`/admin/permissions/users/${userId}/password`, { password })
+  ).data
+}
+
+export async function updatePermissionUserCredentials(
+  userId: string,
+  payload: PermissionUserCredentialsInput,
+): Promise<PermissionUser> {
+  return (
+    await client.put<PermissionUser>(`/admin/permissions/users/${userId}/credentials`, payload)
   ).data
 }
 

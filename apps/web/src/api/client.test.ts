@@ -3,6 +3,7 @@ import type { AxiosResponse } from 'axios'
 
 const axiosPost = vi.hoisted(() => vi.fn())
 const axiosGet = vi.hoisted(() => vi.fn())
+const axiosPut = vi.hoisted(() => vi.fn())
 const axiosResponseUse = vi.hoisted(() => vi.fn())
 
 vi.mock('axios', () => ({
@@ -14,6 +15,7 @@ vi.mock('axios', () => ({
       },
       post: axiosPost,
       get: axiosGet,
+      put: axiosPut,
     })),
   },
 }))
@@ -23,6 +25,7 @@ import {
   ensureJsonApiResponse,
   serializeQueryParams,
   syncFeishuNow,
+  updatePermissionUserCredentials,
 } from './client'
 
 describe('ensureJsonApiResponse', () => {
@@ -178,5 +181,23 @@ describe('syncFeishuNow', () => {
     await expect(result).resolves.toMatchObject({ job_id: 'job-3', status: 'completed' })
     expect(axiosGet).toHaveBeenCalledTimes(2)
     vi.useRealTimers()
+  })
+})
+
+describe('updatePermissionUserCredentials', () => {
+  it('updates the selected user login name and optional password through the admin API', async () => {
+    axiosPut.mockResolvedValueOnce({ data: { id: 'user-1', username: 'new.login' } })
+
+    await expect(
+      updatePermissionUserCredentials('user-1', {
+        username: 'new.login',
+        password: 'New-password-2026',
+      }),
+    ).resolves.toMatchObject({ id: 'user-1', username: 'new.login' })
+
+    expect(axiosPut).toHaveBeenCalledWith('/admin/permissions/users/user-1/credentials', {
+      username: 'new.login',
+      password: 'New-password-2026',
+    })
   })
 })

@@ -76,6 +76,19 @@ class UserPasswordResetRequest(BaseModel):
     password: SecretStr = Field(min_length=10, max_length=128)
 
 
+class UserCredentialsUpdateRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=120)
+    password: SecretStr | None = Field(default=None, min_length=10, max_length=128)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 2:
+            raise ValueError("登录名至少 2 位")
+        return normalized
+
+
 class RoleAccessUpdateRequest(BaseModel):
     role_name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=500)
@@ -439,6 +452,59 @@ def reset_user_password(
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
+    return _serialize_user(db, user)
+
+
+@router.put("/users/{user_id}/credentials")
+def update_user_credentials(
+    user_id: uuid.UUID,
+    payload: UserCredentialsUpdateRequest,
+    request: Request,
+    db: DbSession,
+    access: AdminAccess,
+) -> dict[str, Any]:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    normalized_username = payload.username.strip().casefold()
+    username_exists = db.scalar(
+        select(User.id).where(
+            func.lower(func.trim(User.username)) == normalized_username,
+            User.id != user.id,
+        )
+    )
+    if username_exists is not None:
+        raise HTTPException(status_code=409, detail="登录名已被其他用户使用")
+
+    before = {
+        "username": user.username,
+        "web_login_enabled": bool(user.username and user.password_hash),
+    }
+    secret_rotated = payload.password is not None
+    user.username = normalized_username
+    if payload.password is not None:
+        user.password_hash = hash_password(payload.password.get_secret_value())
+    record_permission_audit(
+        db,
+        actor_user_id=access.user_id,
+        action="user_credentials_updated",
+        target_type="user",
+        target_id=str(user.id),
+        target_user_id=user.id,
+        before_value=before,
+        after_value={
+            "username": user.username,
+            "web_login_enabled": bool(user.username and user.password_hash),
+            "secret_rotated": secret_rotated,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="登录名已被其他用户使用") from exc
+    db.refresh(user)
     return _serialize_user(db, user)
 
 

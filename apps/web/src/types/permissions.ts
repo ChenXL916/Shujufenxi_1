@@ -72,6 +72,11 @@ export interface PermissionUserInput {
   active: boolean
 }
 
+export interface PermissionUserCredentialsInput {
+  username: string
+  password?: string
+}
+
 export interface PermissionRoleInput {
   role_name?: string
   description?: string

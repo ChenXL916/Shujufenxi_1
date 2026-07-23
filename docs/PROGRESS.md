@@ -410,3 +410,15 @@
 - [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器部分完成等价 YAML、路径与安全静态校验。
 - [x] 本阶段真实联调仅执行用户要求的表格数据同步，没有触发飞书群预警推送；运行中的正式 API 本地与公网 `/ready` 均保持 HTTP 200。
 - [x] 功能提交 `4705202` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 生产入口已切换到 `/assets/index-Bqvtlmk_.js`。线上包包含后台同步轮询提示且不再包含旧的统一授权失败提示，公网 `/ready` 返回 `ready / feishu`，数据库与 Redis 均为 `ok`。
+
+## 阶段 28：后台账号与密码自助维护
+
+- [x] 用户管理表格将原“重置密码”升级为对所有用户可用的“账号密码”；即使飞书用户还没有网页登录名，管理员也能直接为其设置登录名和密码。
+- [x] 账号弹窗支持修改网页登录名；新密码可留空以保留原密码，也可填写并二次确认后重置。提示明确说明飞书绑定、角色与直播间范围不受影响。
+- [x] 新增 `PUT /api/v1/admin/permissions/users/{user_id}/credentials`：规范化登录名、排除当前用户后检查唯一性、可选轮换密码哈希，并写入不含明文或哈希的 `user_credentials_updated` 审计。
+- [x] 服务端继续要求 `permission.manage`、有效签名会话与 CSRF；受保护写接口安全清单由 35 条更新为 36 条并通过自动扫描。
+- [x] 后端定向测试 16 项通过；前端 `AdminPage.test.tsx` 与 `client.test.ts` 共 13 项通过，覆盖无登录名用户开通、登录名修改、密码轮换、只改登录名保留密码、冲突拒绝和正确 API 请求。
+- [x] 首次完整门禁准确发现新增接口后的 CSRF 路由计数仍为 35；确认依赖链已受保护后更新为 36，并从头复跑通过，没有跳过或删除安全断言。
+- [x] 最终 `make.cmd check` 退出 0：185 个后端测试、17 个前端文件/66 个单元测试、22 个不超过 650 KiB 的生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.85%。
+- [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器部分完成等价静态校验。
+- [x] 发布前在线备份生产 SQLite 到 `backups/live_ops_account_admin_20260723T021420Z.sqlite3`，备份库 `PRAGMA integrity_check=ok`；自动测试未修改正式账号、密码或直播业务数据。

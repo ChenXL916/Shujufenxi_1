@@ -252,7 +252,7 @@ def test_only_developer_can_change_user_scope_and_change_is_audited() -> None:
     assert forbidden.status_code == 403
 
 
-def test_developer_creates_web_account_and_resets_password_without_exposing_hash() -> None:
+def test_developer_manages_web_account_credentials_without_exposing_hash() -> None:
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -306,6 +306,28 @@ def test_developer_creates_web_account_and_resets_password_without_exposing_hash
             headers=headers,
             json={"password": "Replacement-password-2026"},
         )
+        credentials = client.put(
+            f"/api/v1/admin/permissions/users/{user_id}/credentials",
+            headers=headers,
+            json={
+                "username": " Renamed.Viewer ",
+                "password": "Final-password-2026",
+            },
+        )
+        with Session(engine) as session:
+            rotated = session.get(User, UUID(user_id))
+            assert rotated is not None
+            password_after_rotation = rotated.password_hash
+        rename_only = client.put(
+            f"/api/v1/admin/permissions/users/{user_id}/credentials",
+            headers=headers,
+            json={"username": "Final.Viewer"},
+        )
+        conflict = client.put(
+            f"/api/v1/admin/permissions/users/{user_id}/credentials",
+            headers=headers,
+            json={"username": "developer_test"},
+        )
         with Session(engine) as session:
             stored = session.get(User, UUID(user_id))
             assert stored is not None
@@ -326,7 +348,25 @@ def test_developer_creates_web_account_and_resets_password_without_exposing_hash
     assert "password" not in created.json()
     assert "password_hash" not in created.json()
     assert reset.status_code == 200
+    assert credentials.status_code == 200
+    assert credentials.json()["username"] == "renamed.viewer"
+    assert rename_only.status_code == 200
+    assert rename_only.json()["username"] == "final.viewer"
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"] == "登录名已被其他用户使用"
     assert stored_hash is not None
+    assert stored_hash == password_after_rotation
     assert not verify_password("Initial-password-2026", stored_hash)
-    assert verify_password("Replacement-password-2026", stored_hash)
-    assert {audit.action for audit in audits} == {"user_created", "user_password_reset"}
+    assert not verify_password("Replacement-password-2026", stored_hash)
+    assert verify_password("Final-password-2026", stored_hash)
+    assert {audit.action for audit in audits} == {
+        "user_created",
+        "user_password_reset",
+        "user_credentials_updated",
+    }
+    credential_audits = [audit for audit in audits if audit.action == "user_credentials_updated"]
+    assert len(credential_audits) == 2
+    assert all(
+        "Final-password-2026" not in repr((audit.before_value, audit.after_value))
+        for audit in credential_audits
+    )

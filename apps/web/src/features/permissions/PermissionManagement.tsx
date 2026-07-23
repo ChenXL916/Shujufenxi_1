@@ -21,15 +21,16 @@ import {
   Tag,
   Typography,
 } from 'antd'
+import axios from 'axios'
 import { useState } from 'react'
 import {
   createFeishuPermissionGroup,
   createPermissionUser,
   getPermissionOverview,
-  resetPermissionUserPassword,
   updateFeishuPermissionGroup,
   updatePermissionRole,
   updatePermissionUserAccess,
+  updatePermissionUserCredentials,
   updateRoomResource,
 } from '@/api/client'
 import { EmptyPanel, ErrorPanel, LoadingPanel } from '@/components/StatePanel'
@@ -52,9 +53,10 @@ type UserFormValues = {
   active: boolean
 }
 
-type PasswordFormValues = {
-  password: string
-  password_confirmation: string
+type CredentialsFormValues = {
+  username: string
+  password?: string
+  password_confirmation?: string
 }
 
 type RoleFormValues = {
@@ -87,6 +89,16 @@ const roleColor: Record<string, string> = {
   viewer: 'default',
 }
 
+function permissionErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError<unknown>(error)) {
+    const data = error.response?.data
+    if (data && typeof data === 'object' && 'detail' in data && typeof data.detail === 'string') {
+      return data.detail
+    }
+  }
+  return fallback
+}
+
 export function PermissionManagement() {
   const queryClient = useQueryClient()
   const query = useQuery({
@@ -94,7 +106,7 @@ export function PermissionManagement() {
     queryFn: getPermissionOverview,
   })
   const [userEditor, setUserEditor] = useState<PermissionUser | 'new' | null>(null)
-  const [passwordEditor, setPasswordEditor] = useState<PermissionUser | null>(null)
+  const [credentialsEditor, setCredentialsEditor] = useState<PermissionUser | null>(null)
   const [roleEditor, setRoleEditor] = useState<PermissionRole | null>(null)
   const [resourceEditor, setResourceEditor] = useState<RoomResource | null>(null)
   const [groupEditor, setGroupEditor] = useState<FeishuPermissionGroup | 'new' | null>(null)
@@ -130,17 +142,25 @@ export function PermissionManagement() {
     },
     onError: () => message.error('用户权限保存失败，请检查角色和直播间配置'),
   })
-  const savePassword = useMutation({
-    mutationFn: async (values: PasswordFormValues) => {
-      if (!passwordEditor) throw new Error('未选择用户')
-      return resetPermissionUserPassword(passwordEditor.id, values.password)
+  const saveCredentials = useMutation({
+    mutationFn: async (values: CredentialsFormValues) => {
+      if (!credentialsEditor) throw new Error('未选择用户')
+      return updatePermissionUserCredentials(credentialsEditor.id, {
+        username: values.username.trim(),
+        password: values.password || undefined,
+      })
     },
-    onSuccess: async () => {
-      setPasswordEditor(null)
+    onSuccess: async (_, values) => {
+      setCredentialsEditor(null)
       await refresh()
-      message.success('网页登录密码已重置，旧密码立即失效')
+      message.success(
+        values.password
+          ? '网页登录名和新密码已保存，旧密码立即失效'
+          : '网页登录名已保存，原密码保持不变',
+      )
     },
-    onError: () => message.error('密码重置失败，请确认密码长度和账号状态'),
+    onError: (error) =>
+      message.error(permissionErrorMessage(error, '账号密码保存失败，请检查输入后重试')),
   })
   const saveRole = useMutation({
     mutationFn: async (values: RoleFormValues) => {
@@ -194,7 +214,7 @@ export function PermissionManagement() {
       key: 'users',
       label: '用户管理',
       children: (
-        <UsersPanel data={data} onEdit={setUserEditor} onResetPassword={setPasswordEditor} />
+        <UsersPanel data={data} onEdit={setUserEditor} onEditCredentials={setCredentialsEditor} />
       ),
     },
     {
@@ -226,8 +246,8 @@ export function PermissionManagement() {
       <Alert
         showIcon
         type="success"
-        title="管理员创建网页账号，同事无需飞书应用权限"
-        description="新增用户时设置登录名和初始密码，再分配角色与直播间。对已有飞书用户也可以重置网页密码，启用两种登录方式；两种方式进入后使用完全相同的服务端权限。"
+        title="管理员可直接维护每个用户的网页账号与密码"
+        description="新增用户时设置登录名和初始密码；已有用户可在“账号密码”中修改登录名或重置密码。飞书绑定、角色和直播间范围独立保存，不会被账号修改覆盖。"
       />
       <Card size="small">
         <Space wrap size={[8, 8]}>
@@ -245,11 +265,11 @@ export function PermissionManagement() {
         onCancel={() => setUserEditor(null)}
         onSave={(values) => saveUser.mutate(values)}
       />
-      <PasswordResetModal
-        value={passwordEditor}
-        saving={savePassword.isPending}
-        onCancel={() => setPasswordEditor(null)}
-        onSave={(values) => savePassword.mutate(values)}
+      <CredentialsEditorModal
+        value={credentialsEditor}
+        saving={saveCredentials.isPending}
+        onCancel={() => setCredentialsEditor(null)}
+        onSave={(values) => saveCredentials.mutate(values)}
       />
       <RoleEditorModal
         value={roleEditor}
@@ -278,11 +298,11 @@ export function PermissionManagement() {
 function UsersPanel({
   data,
   onEdit,
-  onResetPassword,
+  onEditCredentials,
 }: {
   data: PermissionOverview
   onEdit: (value: PermissionUser | 'new') => void
-  onResetPassword: (value: PermissionUser) => void
+  onEditCredentials: (value: PermissionUser) => void
 }) {
   return (
     <Space orientation="vertical" size={12} className="page-stack">
@@ -376,13 +396,8 @@ function UsersPanel({
                 <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
                   权限
                 </Button>
-                <Button
-                  size="small"
-                  icon={<KeyOutlined />}
-                  disabled={!item.username}
-                  onClick={() => onResetPassword(item)}
-                >
-                  重置密码
+                <Button size="small" icon={<KeyOutlined />} onClick={() => onEditCredentials(item)}>
+                  账号密码
                 </Button>
               </Space>
             ),
@@ -682,7 +697,7 @@ function UserEditorModal({
   )
 }
 
-function PasswordResetModal({
+function CredentialsEditorModal({
   value,
   saving,
   onCancel,
@@ -691,36 +706,53 @@ function PasswordResetModal({
   value: PermissionUser | null
   saving: boolean
   onCancel: () => void
-  onSave: (values: PasswordFormValues) => void
+  onSave: (values: CredentialsFormValues) => void
 }) {
-  const [form] = Form.useForm<PasswordFormValues>()
+  const [form] = Form.useForm<CredentialsFormValues>()
   return (
     <Modal
       open={value !== null}
-      title={`重置网页密码 · ${value?.name ?? ''}`}
-      okText="确认重置"
+      title={`账号与密码 · ${value?.name ?? ''}`}
+      okText="保存账号设置"
       cancelText="取消"
       confirmLoading={saving}
       destroyOnHidden
       onCancel={onCancel}
       onOk={() => void form.submit()}
       afterOpenChange={(open) => {
-        if (open) form.resetFields()
+        if (!open) return
+        form.setFieldsValue({
+          username: value?.username ?? '',
+          password: '',
+          password_confirmation: '',
+        })
       }}
     >
       <Alert
-        type="warning"
+        type="info"
         showIcon
-        title="保存后旧密码立即失效"
-        description="请通过安全渠道把新密码交给本人，不要把密码写入群公告或审计备注。"
+        title="可修改登录名，也可按需重置密码"
+        description="新密码留空时只修改登录名，原密码保持不变；填写新密码后旧密码立即失效。飞书绑定、角色和数据范围不会改变。"
         style={{ marginBottom: 16 }}
       />
       <Form form={form} layout="vertical" onFinish={onSave}>
         <Form.Item
-          name="password"
-          label="新密码"
+          name="username"
+          label="网页登录名"
+          extra="登录名不区分大小写，保存时会去除首尾空格。"
           rules={[
-            { required: true, message: '请输入新密码' },
+            { required: true, message: '请输入网页登录名' },
+            { min: 2, message: '登录名至少 2 位' },
+            { max: 120, message: '登录名最多 120 位' },
+          ]}
+        >
+          <Input autoComplete="username" />
+        </Form.Item>
+        <Form.Item
+          name="password"
+          label="新密码（可选）"
+          extra="至少 10 位；留空表示保留原密码。系统只保存单向哈希，不会回显密码。"
+          rules={[
             { min: 10, message: '密码至少 10 位' },
             { max: 128, message: '密码最多 128 位' },
           ]}
@@ -732,12 +764,13 @@ function PasswordResetModal({
           label="确认新密码"
           dependencies={['password']}
           rules={[
-            { required: true, message: '请再次输入新密码' },
             ({ getFieldValue }) => ({
               validator(_, input) {
-                return !input || getFieldValue('password') === input
-                  ? Promise.resolve()
-                  : Promise.reject(new Error('两次输入的密码不一致'))
+                const password = getFieldValue('password') as string | undefined
+                if (!password && !input) return Promise.resolve()
+                if (!input) return Promise.reject(new Error('请再次输入新密码'))
+                if (password === input) return Promise.resolve()
+                return Promise.reject(new Error('两次输入的密码不一致'))
               },
             }),
           ]}
