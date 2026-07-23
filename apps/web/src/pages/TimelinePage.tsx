@@ -1,27 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
-import { Button, Card, Descriptions, Drawer, Segmented, Select, Space, Tag, Typography } from 'antd'
+import { Button, Card, Segmented, Select, Space, Tag, Typography } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getDetail, getFilterOptions, getTimeline } from '@/api/client'
 import { FilterBar } from '@/components/FilterBar'
 import { MetricChart } from '@/components/MetricChart'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyPanel, ErrorPanel, LoadingPanel } from '@/components/StatePanel'
+import { DataPointDetailDrawer } from '@/features/timeline/DataPointDetailDrawer'
 import { useDashboardFilters } from '@/hooks/useDashboardFilters'
 import type { TimelineGroup, XItem } from '@/types/dashboard'
-import { formatMetric, groupSeriesByUnit } from '@/utils/format'
+import { groupSeriesByUnit } from '@/utils/format'
 import { restoreFocusAfterOverlayClose } from '@/utils/focus'
 import { mergeTimelineGroups } from '@/utils/timeline'
-
-function displayValue(value: unknown): string {
-  if (value === null || value === undefined) return '—'
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
-    return value.toString()
-  }
-  if (typeof value === 'symbol') return value.description ?? '—'
-  if (typeof value === 'function') return value.name || '函数'
-  return JSON.stringify(value) ?? '—'
-}
 
 function pointForIndex(group: TimelineGroup, index: number): XItem | null {
   return (
@@ -179,54 +169,16 @@ export function TimelinePage() {
           </Card>
         ))
       )}
-      <Drawer
-        size={620}
+      <DataPointDetailDrawer
         open={Boolean(selected)}
         onClose={closeDetail}
-        destroyOnHidden
-        rootClassName="timeline-detail-drawer"
-        title="数据点详情"
-      >
-        {detail.isLoading ? (
-          <LoadingPanel />
-        ) : detail.isError ? (
-          <ErrorPanel onRetry={() => void detail.refetch()} />
-        ) : (
-          detail.data && (
-            <Space orientation="vertical" size={20} className="drawer-stack">
-              <Descriptions
-                bordered
-                column={{ xs: 1, sm: 1, md: 2 }}
-                size="small"
-                items={Object.entries(detail.data.base).map(([key, value]) => ({
-                  key,
-                  label: key,
-                  children: displayValue(value),
-                }))}
-              />
-              <Card size="small" title="标准化指标">
-                <Descriptions
-                  column={{ xs: 1, sm: 1, md: 2 }}
-                  size="small"
-                  items={Object.entries(detail.data.metrics).map(([key, value]) => ({
-                    key,
-                    label: options.data?.metrics.find((metric) => metric.key === key)?.name ?? key,
-                    children: formatMetric(
-                      value,
-                      options.data?.metrics.find((metric) => metric.key === key)?.unit ?? 'ratio',
-                    ),
-                  }))}
-                />
-              </Card>
-              {detail.data.raw_payload && (
-                <Card size="small" title="原始字段">
-                  <pre className="raw-json">{JSON.stringify(detail.data.raw_payload, null, 2)}</pre>
-                </Card>
-              )}
-            </Space>
-          )
-        )}
-      </Drawer>
+        loading={detail.isLoading}
+        error={detail.isError}
+        onRetry={() => void detail.refetch()}
+        detail={detail.data}
+        filterOptions={options.data}
+        grain={filters.grain}
+      />
     </Space>
   )
 }

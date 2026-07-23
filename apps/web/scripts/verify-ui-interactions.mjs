@@ -284,6 +284,40 @@ try {
     ),
     detailBounds,
   )
+  const detailLayout = await detailDialog.evaluate((element) => ({
+    headings: Array.from(element.querySelectorAll('h3, h4, h5')).map((heading) =>
+      heading.textContent?.trim(),
+    ),
+    rawText: element.textContent ?? '',
+    metricGrids: Array.from(element.querySelectorAll('.detail-metric-grid')).map((grid) => ({
+      columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+      clientWidth: grid.clientWidth,
+      scrollWidth: grid.scrollWidth,
+    })),
+    metricValues: Array.from(element.querySelectorAll('.detail-metric-value')).map((value) => ({
+      text: value.textContent?.trim(),
+      clientWidth: value.clientWidth,
+      scrollWidth: value.scrollWidth,
+    })),
+  }))
+  assert(
+    'Timeline详情使用中文信息层级和指标分组',
+    detailLayout.headings.includes('标准化指标') &&
+      detailLayout.headings.includes('本时段表现') &&
+      !detailLayout.rawText.includes('hour_slot') &&
+      !detailLayout.rawText.includes('anchor_match_status'),
+    detailLayout,
+  )
+  assert(
+    'Timeline详情390px指标为单列且数值不截断',
+    detailLayout.metricGrids.length > 0 &&
+      detailLayout.metricGrids.every(
+        (grid) => grid.columns === 1 && grid.scrollWidth <= grid.clientWidth + 1,
+      ) &&
+      detailLayout.metricValues.length > 0 &&
+      detailLayout.metricValues.every((value) => value.scrollWidth <= value.clientWidth + 1),
+    detailLayout,
+  )
   await mobilePage.screenshot({ path: path.join(statesDir, 'timeline-detail-drawer.png') })
   await detailDialog.locator('.ant-drawer-close').focus()
   await mobilePage.keyboard.press('Escape')

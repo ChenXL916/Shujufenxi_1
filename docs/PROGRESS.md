@@ -494,3 +494,14 @@
 - [x] 发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T072935Z.sqlite3`，文件为 70,701,056 字节且 `PRAGMA integrity_check=ok`；没有修改正式经营数据，也没有向真实飞书群发送消息。
 - [x] 功能提交 `778a16e` 已推送至 `ChenXL916/Shujufenxi_1/main`；生产 API 重启后，本地与公网 `/ready` 均返回 `ready / feishu`，未登录访问筛选选项接口返回 HTTP 401。
 - [x] Netlify 已发布主包 `/assets/index-BpSoq5-r.js` 和主播分析分包 `/assets/AnalysisPage-BSODBGsA.js`；线上分包含配置默认逻辑与“最近时段”标注，运行配置复核为 20 项、首项 `period_gmv`、末项 `period_net_order_cost` 且不含 `period_spend`。
+
+## 阶段 34：数据点详情暖白视觉与信息排版
+
+- [x] 数据点详情已拆分为直播间概览、中文业务上下文、数据质量状态、标准化指标分组、真实采集记录和原始字段折叠区；不再直接显示 `hour_slot`、`anchor_match_status` 等英文技术键。
+- [x] 详情继续读取原有小时事实、采集点和指标字典；指标名称、单位、精度与顺序由筛选选项返回，金额、人数、ROI 及累计/时段口径没有改动。
+- [x] 抽屉桌面上限 760px；600 × 1200 使用双列指标卡，390 × 844 自动切换单列。真实 46 项指标均无横向截断，页面和抽屉无横向溢出。
+- [x] 小时详情新增该小时全部真实采集点及有效/异常说明；采集点原始 JSON 保留但默认折叠，减少首屏噪声。
+- [x] 定向测试通过：新组件 2 项单测；只读浏览器视觉/交互验收 24 项断言；失败请求、被阻断请求和控制台错误均为 0；`design-qa.md` 最终结果为 `passed`。
+- [x] 最终 `make.cmd check` 退出 0：189 个后端测试、19 个前端测试文件/74 个单元测试、22 个不超过 650 KiB 的生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.90%。
+- [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器运行态完成 YAML、路径和安全静态等价验收。
+- [x] 发布前在线备份 `live_ops_test.db` 到 `backups/live_ops_detail_ui_20260723T081103Z.sqlite3`，完整性为 `ok`；自动测试和视觉验收没有修改正式经营数据、账号、权限或发送真实飞书群消息。

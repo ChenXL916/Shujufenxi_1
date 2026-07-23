@@ -339,3 +339,14 @@
 - 安全边界：自动测试使用内存数据库、隔离 E2E 数据库和 Mock 飞书机器人；发布前在线备份正式 SQLite 到 `backups/live_ops_20260723T072935Z.sqlite3`，大小 70,701,056 字节且 `PRAGMA integrity_check=ok`，未修改正式经营数据或发送真实群消息。
 - 发布复核：功能提交 `778a16e` 已推送至 `ChenXL916/Shujufenxi_1/main`；生产 API 重启后本地和公网 `/ready` 均为 HTTP 200、`ready / feishu`，筛选选项接口未登录探针返回 HTTP 401。
 - 前端发布：Netlify 入口已切换为 `/assets/index-BpSoq5-r.js`，主播分析分包为 `/assets/AnalysisPage-BSODBGsA.js`；线上分包包含 `analysis_default` 和“最近时段”，运行配置确认默认 20 项且排除 `period_spend`。
+
+## 2026-07-23 阶段 34：数据点详情暖白视觉与信息排版
+
+- 实现范围：小时趋势的数据点详情抽屉改为全站暖白卡片体系；基础字段中文化，状态转为“数据完整/待补录/缺失”和“排班一致/不一致/待实绩”等业务文案；指标按本时段、直播累计、实时快照和其他口径分组。
+- 完整数据：小时事实详情展示服务端返回的全部真实采集点、采集时间和有效/异常说明；采集点 `raw_payload` 仍可完整展开，没有删除或改写原始数据。
+- 单元测试：`DataPointDetailDrawer.test.tsx` 2/2 通过，覆盖中文字段、状态、指标分组、金额/ROI/人数格式、采集记录、英文键隐藏和原始字段默认折叠/展开。
+- 视觉证据：源截图与实现均归一化为 600 × 1200、`deviceScaleFactor=1`，同屏证据为 `docs/ui/evidence/after/data-point-detail-comparison.png`；390 × 844 手机截图验证单列布局。`design-qa.md` 检查字体、间距、颜色、图标资产和文案，最终 `passed`，无 P0/P1/P2/P3 遗留。
+- 浏览器交互：本地真实运行库只读验收 24/24 断言通过；600px 三组指标均为双列，390px 三组均为单列；46 个指标值无截断，页面与抽屉无横向溢出，关闭焦点恢复，控制台错误、失败请求和被阻断请求均为 0。
+- 完整门禁：`make.cmd check` 退出 0。Ruff、ESLint、mypy、TypeScript 和 Prettier 通过；189 个后端测试通过，领域与服务覆盖率 85.90%；19 个前端测试文件/74 个单元测试通过；生产构建的 22 个 JS Chunk 全部不超过 650 KiB；6 个 Chromium E2E 通过。
+- 生产验证：`make.cmd verify-production` 退出 0，验证 7 个服务、33 张表、迁移、生产强密钥、关闭开发旁路、无 fixture 写入和 Docker 构建路径。本机没有 Docker CLI，因此容器运行态完成 YAML、路径与安全静态等价验收。
+- 数据保护：发布前 SQLite 在线备份为 `backups/live_ops_detail_ui_20260723T081103Z.sqlite3`，`PRAGMA integrity_check=ok`；自动测试使用隔离数据库和 Mock 飞书运输，手工视觉验收只允许本机只读 HTTP 请求，没有修改正式经营数据、账号、权限或发送真实飞书群消息。
