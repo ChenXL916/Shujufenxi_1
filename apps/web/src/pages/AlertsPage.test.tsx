@@ -313,16 +313,21 @@ test('详情抽屉展示逐日、24小时、ROI分子分母与原始事实', asy
 
   fireEvent.click(await screen.findByRole('button', { name: '查看主播甲趋势详情' }))
   expect(await screen.findByText('主播甲｜趋势事实详情')).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: '主播甲' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: '经营对比' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: '事实明细' })).toBeInTheDocument()
+  expect(screen.getAllByText('ROI显著上涨').length).toBeGreaterThan(0)
+  expect(screen.getAllByText('ROI 已达标').length).toBeGreaterThan(0)
   expect(await screen.findByText('当前周期 ROI 分子')).toBeInTheDocument()
   expect(screen.getAllByText('¥390.00').length).toBeGreaterThan(0)
 
-  fireEvent.click(screen.getByRole('tab', { name: '逐日汇总' }))
+  fireEvent.click(screen.getByRole('tab', { name: /逐日汇总/ }))
   expect(await screen.findByText('2026-07-15')).toBeInTheDocument()
 
-  fireEvent.click(screen.getByRole('tab', { name: '24小时明细' }))
+  fireEvent.click(screen.getByRole('tab', { name: /24 小时明细/ }))
   expect(await screen.findByText('08-09')).toBeInTheDocument()
 
-  fireEvent.click(screen.getByRole('tab', { name: '原始事实' }))
+  fireEvent.click(screen.getByRole('tab', { name: /原始事实/ }))
   expect(await screen.findByText('fact-1')).toBeInTheDocument()
   expect(screen.getByText('有效')).toBeInTheDocument()
   expect(api.getAnchorTrendEvent).toHaveBeenCalledWith('event-rise')

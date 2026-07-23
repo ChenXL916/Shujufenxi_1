@@ -328,12 +328,18 @@ test('周期/图表切换、24行表和图表点击详情联动', async () => {
 
   fireEvent.click(screen.getByTestId('hourly-chart'))
   expect(await screen.findByText('08:00-09:00 分时详情')).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: '08:00-09:00 时段表现' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: '核心表现' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: '明细数据' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /查看原小时趋势/ })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /查看相关预警/ })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /导出 CSV/ })).toBeInTheDocument()
   expect(apiMocks.getHourlyComparisonDetails).toHaveBeenCalledWith(
     expect.objectContaining({ roomIds: ['room-1'] }),
     '08-09',
     1,
   )
-  expect(await screen.findByText('2026-07-15')).toBeInTheDocument()
+  expect((await screen.findAllByText('2026-07-15')).length).toBeGreaterThan(0)
 })
 
 test('选择附加指标后显示真实当前/基准值并发送筛选参数', async () => {

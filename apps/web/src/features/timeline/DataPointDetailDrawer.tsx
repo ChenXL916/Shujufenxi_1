@@ -1,7 +1,6 @@
 import {
   BarChartOutlined,
   CalendarOutlined,
-  CheckCircleFilled,
   ClockCircleOutlined,
   DatabaseOutlined,
   FieldTimeOutlined,
@@ -12,6 +11,13 @@ import { Collapse, Drawer, Tag, Typography } from 'antd'
 import dayjs from 'dayjs'
 import { useMemo } from 'react'
 import { ErrorPanel, LoadingPanel } from '@/components/StatePanel'
+import {
+  DetailHero,
+  DetailMetricGrid,
+  DetailSectionHeading,
+  DetailStatusTag,
+  type DetailStatus,
+} from '@/features/detail-ui/DetailScaffold'
 import type { DetailResponse, FilterOptions, Grain, MetricOption } from '@/types/dashboard'
 import { formatMetric } from '@/utils/format'
 
@@ -74,11 +80,6 @@ interface MetricView {
   option?: MetricOption
 }
 
-interface StatusView {
-  label: string
-  tone: 'positive' | 'warning' | 'negative' | 'neutral'
-}
-
 interface DataPointDetailDrawerProps {
   detail?: DetailResponse
   filterOptions?: FilterOptions
@@ -104,13 +105,13 @@ function dateTimeText(value: unknown): string {
   return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : value
 }
 
-function statusView(key: string, value: unknown): StatusView {
+function statusView(key: string, value: unknown): DetailStatus {
   const normalized =
     typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
       ? String(value).toLowerCase()
       : ''
   if (key === 'anchor_match_status') {
-    const anchorStatuses: Record<string, StatusView> = {
+    const anchorStatuses: Record<string, DetailStatus> = {
       matched: { label: '排班一致', tone: 'positive' },
       mismatched: { label: '主播不一致', tone: 'negative' },
       scheduled_but_missing: { label: '排班待实绩', tone: 'warning' },
@@ -121,7 +122,7 @@ function statusView(key: string, value: unknown): StatusView {
     return anchorStatuses[normalized] ?? { label: valueText(value), tone: 'neutral' }
   }
   if (key === 'data_status') {
-    const dataStatuses: Record<string, StatusView> = {
+    const dataStatuses: Record<string, DetailStatus> = {
       complete: { label: '数据完整', tone: 'positive' },
       partial: { label: '数据待补录', tone: 'warning' },
       missing: { label: '数据缺失', tone: 'negative' },
@@ -150,15 +151,6 @@ function scopeText(metric?: MetricOption): string {
   if (metric.scope === 'instant') return '实时'
   if (metric.scope === 'derived') return '派生'
   return metric.scope
-}
-
-function StatusTag({ status }: { status: StatusView }) {
-  return (
-    <Tag className={`detail-status-tag ${status.tone}`}>
-      {status.tone === 'positive' && <CheckCircleFilled aria-hidden />}
-      {status.label}
-    </Tag>
-  )
 }
 
 export function DataPointDetailDrawer({
@@ -218,7 +210,7 @@ export function DataPointDetailDrawer({
       open={open}
       onClose={onClose}
       destroyOnHidden
-      rootClassName="timeline-detail-drawer"
+      rootClassName="detail-drawer timeline-detail-drawer"
       title="数据点详情"
     >
       {loading ? (
@@ -227,95 +219,69 @@ export function DataPointDetailDrawer({
         <ErrorPanel onRetry={onRetry} />
       ) : (
         detail && (
-          <div className="data-point-detail">
-            <section className="detail-overview-card" aria-labelledby="detail-room-name">
-              <div className="detail-overview-heading">
-                <span className="detail-room-icon" aria-hidden>
-                  <DatabaseOutlined />
-                </span>
-                <div className="detail-room-copy">
-                  <Typography.Text className="detail-eyebrow">LIVE DATA POINT</Typography.Text>
-                  <Typography.Title id="detail-room-name" level={3}>
-                    {detail.room}
-                  </Typography.Title>
-                </div>
-                <Tag className="detail-grain-tag">
-                  {grain === 'hour' ? '自然小时汇总' : '真实采集点'}
-                </Tag>
-              </div>
-
-              <div className="detail-status-row" aria-label="数据点状态">
-                <StatusTag status={dataStatus} />
-                {base.anchor_match_status !== undefined && <StatusTag status={matchStatus} />}
-                <Typography.Text type="secondary">
-                  {metricCount.toLocaleString('zh-CN')} 项标准化指标
-                </Typography.Text>
-              </div>
-
-              <div className="detail-context-grid">
-                <div className="detail-context-item">
-                  <span>
-                    <CalendarOutlined aria-hidden />
-                    业务日期
-                  </span>
-                  <strong>{date}</strong>
-                </div>
-                <div className="detail-context-item">
-                  <span>
-                    <ClockCircleOutlined aria-hidden />
-                    自然小时
-                  </span>
-                  <strong>{hourSlot}</strong>
-                </div>
-                <div className="detail-context-item">
-                  <span>
-                    <UserOutlined aria-hidden />
-                    实际主播
-                  </span>
-                  <strong>{anchor}</strong>
-                </div>
-                <div className="detail-context-item">
-                  <span>
-                    <TeamOutlined aria-hidden />
-                    场控
-                  </span>
-                  <strong>{control}</strong>
-                </div>
-              </div>
-
-              <div className="detail-quality-grid">
-                {base.planned_anchor !== undefined && (
-                  <div>
-                    <span>排班主播</span>
-                    <strong>{plannedAnchor}</strong>
-                  </div>
-                )}
-                <div>
-                  <span>{base.observed_at !== undefined ? '采集时间' : '最晚采集'}</span>
-                  <strong>{observedAt}</strong>
-                </div>
-                {extraBaseEntries.map(([key, value]) => (
-                  <div key={key}>
-                    <span>{BASE_LABELS[key] ?? `扩展字段 · ${key}`}</span>
-                    <strong>{key.includes('_at') ? dateTimeText(value) : valueText(value)}</strong>
-                  </div>
-                ))}
-              </div>
-            </section>
+          <div className="detail-drawer-content data-point-detail">
+            <DetailHero
+              id="detail-room-name"
+              icon={<DatabaseOutlined />}
+              eyebrow="LIVE DATA POINT"
+              title={detail.room}
+              badge={grain === 'hour' ? '自然小时汇总' : '真实采集点'}
+              statuses={[
+                dataStatus,
+                ...(base.anchor_match_status !== undefined ? [matchStatus] : []),
+              ]}
+              meta={`${metricCount.toLocaleString('zh-CN')} 项标准化指标`}
+              contexts={[
+                {
+                  key: 'date',
+                  label: '业务日期',
+                  value: date,
+                  icon: <CalendarOutlined aria-hidden />,
+                },
+                {
+                  key: 'hour',
+                  label: '自然小时',
+                  value: hourSlot,
+                  icon: <ClockCircleOutlined aria-hidden />,
+                },
+                {
+                  key: 'anchor',
+                  label: '实际主播',
+                  value: anchor,
+                  icon: <UserOutlined aria-hidden />,
+                },
+                {
+                  key: 'control',
+                  label: '场控',
+                  value: control,
+                  icon: <TeamOutlined aria-hidden />,
+                },
+              ]}
+              supplementary={[
+                ...(base.planned_anchor !== undefined
+                  ? [{ key: 'planned-anchor', label: '排班主播', value: plannedAnchor }]
+                  : []),
+                {
+                  key: 'observed-at',
+                  label: base.observed_at !== undefined ? '采集时间' : '最晚采集',
+                  value: observedAt,
+                },
+                ...extraBaseEntries.map(([key, value]) => ({
+                  key,
+                  label: BASE_LABELS[key] ?? `扩展字段 · ${key}`,
+                  value: key.includes('_at') ? dateTimeText(value) : valueText(value),
+                })),
+              ]}
+            />
 
             <section className="detail-section" aria-labelledby="detail-metrics-title">
-              <div className="detail-section-heading">
-                <div>
-                  <Typography.Text className="detail-section-kicker">
-                    <BarChartOutlined aria-hidden />
-                    STANDARDIZED METRICS
-                  </Typography.Text>
-                  <Typography.Title id="detail-metrics-title" level={4}>
-                    标准化指标
-                  </Typography.Title>
-                </div>
-                <Typography.Text type="secondary">按数据口径分组</Typography.Text>
-              </div>
+              <DetailSectionHeading
+                id="detail-metrics-title"
+                icon={<BarChartOutlined aria-hidden />}
+                kicker="STANDARDIZED METRICS"
+                title="标准化指标"
+                aside="按数据口径分组"
+              />
 
               <div className="detail-metric-groups">
                 {(Object.keys(GROUP_META) as MetricGroupKey[]).map((groupKey) => {
@@ -337,30 +303,18 @@ export function DataPointDetailDrawer({
                         </div>
                         <Tag>{metrics.length} 项</Tag>
                       </div>
-                      <div className="detail-metric-grid">
-                        {metrics.map((metric) => (
-                          <article className="detail-metric-tile" key={metric.key}>
-                            <div className="detail-metric-meta">
-                              <span>{metric.option?.name ?? metric.key}</span>
-                              <small>{scopeText(metric.option)}</small>
-                            </div>
-                            <strong
-                              className="detail-metric-value"
-                              aria-label={`${metric.option?.name ?? metric.key}：${formatMetric(
-                                metric.value,
-                                metric.option?.unit ?? 'ratio',
-                                metric.option?.precision ?? 2,
-                              )}`}
-                            >
-                              {formatMetric(
-                                metric.value,
-                                metric.option?.unit ?? 'ratio',
-                                metric.option?.precision ?? 2,
-                              )}
-                            </strong>
-                          </article>
-                        ))}
-                      </div>
+                      <DetailMetricGrid
+                        items={metrics.map((metric) => ({
+                          key: metric.key,
+                          label: metric.option?.name ?? metric.key,
+                          hint: scopeText(metric.option),
+                          value: formatMetric(
+                            metric.value,
+                            metric.option?.unit ?? 'ratio',
+                            metric.option?.precision ?? 2,
+                          ),
+                        }))}
+                      />
                     </section>
                   )
                 })}
@@ -369,18 +323,14 @@ export function DataPointDetailDrawer({
 
             {detail.points.length > 0 && (
               <section className="detail-section" aria-labelledby="detail-points-title">
-                <div className="detail-section-heading compact">
-                  <div>
-                    <Typography.Text className="detail-section-kicker">
-                      <FieldTimeOutlined aria-hidden />
-                      SOURCE POINTS
-                    </Typography.Text>
-                    <Typography.Title id="detail-points-title" level={4}>
-                      采集记录
-                    </Typography.Title>
-                  </div>
-                  <Tag>{detail.points.length} 个采集点</Tag>
-                </div>
+                <DetailSectionHeading
+                  id="detail-points-title"
+                  icon={<FieldTimeOutlined aria-hidden />}
+                  kicker="SOURCE POINTS"
+                  title="采集记录"
+                  aside={`${detail.points.length} 个采集点`}
+                  compact
+                />
                 <div className="detail-point-list">
                   {detail.points.map((point, index) => {
                     const valid = point.valid !== false
@@ -401,7 +351,7 @@ export function DataPointDetailDrawer({
                               : '已纳入该小时标准化计算'}
                           </small>
                         </div>
-                        <StatusTag
+                        <DetailStatusTag
                           status={{
                             label: valid ? '有效' : '异常',
                             tone: valid ? 'positive' : 'negative',

@@ -1,9 +1,15 @@
 import {
+  BarChartOutlined,
+  CalendarOutlined,
+  DatabaseOutlined,
   ExperimentOutlined,
   EyeOutlined,
+  LineChartOutlined,
   ReloadOutlined,
   SendOutlined,
   SyncOutlined,
+  TeamOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -13,7 +19,6 @@ import {
   Card,
   Col,
   DatePicker,
-  Descriptions,
   Drawer,
   Empty,
   Form,
@@ -52,6 +57,12 @@ import {
 } from '@/api/client'
 import { EmptyPanel, ErrorPanel, LoadingPanel } from '@/components/StatePanel'
 import { PageHeader } from '@/components/PageHeader'
+import {
+  DetailHero,
+  DetailMetricGrid,
+  DetailSectionHeading,
+  type DetailStatus,
+} from '@/features/detail-ui/DetailScaffold'
 import type {
   AnchorTrendFilters,
   AnchorTrendItem,
@@ -941,6 +952,26 @@ function TrendDetailDrawer({
   })
   const item = detail.data?.items.find((candidate) => candidate.item_id === selection?.itemId)
   const facts = detail.data?.details.find((candidate) => candidate.item_id === selection?.itemId)
+  const event = detail.data?.event
+
+  const trendStatus: DetailStatus | null = item
+    ? {
+        label: item.primary_status_name,
+        tone:
+          item.trend_type === 'rise'
+            ? 'positive'
+            : item.trend_type === 'fall'
+              ? 'negative'
+              : 'warning',
+      }
+    : null
+  const roiTargetStatus: DetailStatus | null = item
+    ? item.roi_target_reached === true
+      ? { label: 'ROI 已达标', tone: 'positive' }
+      : item.roi_target_reached === false
+        ? { label: 'ROI 未达标', tone: 'negative' }
+        : { label: 'ROI 目标未配置', tone: 'neutral' }
+    : null
 
   return (
     <Drawer
@@ -948,7 +979,7 @@ function TrendDetailDrawer({
       open={Boolean(selection)}
       onClose={onClose}
       destroyOnHidden
-      rootClassName="anchor-trend-detail-drawer"
+      rootClassName="detail-drawer anchor-trend-detail-drawer"
       size={860}
       styles={{ wrapper: { maxWidth: '100vw' } }}
     >
@@ -961,63 +992,191 @@ function TrendDetailDrawer({
       ) : !item || !facts ? (
         <Empty description="趋势详情不存在或已不在当前授权范围内。" />
       ) : (
-        <Space orientation="vertical" size={16} className="drawer-stack">
-          <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
-            <Descriptions.Item label="主播">{item.anchor_name}</Descriptions.Item>
-            <Descriptions.Item label="直播间">{item.room_name}</Descriptions.Item>
-            <Descriptions.Item label="当前周期 ROI">
-              {formatMetric(item.current_roi, 'ratio')}
-            </Descriptions.Item>
-            <Descriptions.Item label="基准周期 ROI">
-              {formatMetric(item.baseline_roi, 'ratio')}
-            </Descriptions.Item>
-            <Descriptions.Item label="当前周期 ROI 分子">
-              {formatMetric(facts.roi_numerator.current, 'currency')}
-            </Descriptions.Item>
-            <Descriptions.Item label="基准周期 ROI 分子">
-              {formatMetric(facts.roi_numerator.baseline, 'currency')}
-            </Descriptions.Item>
-            <Descriptions.Item label="当前周期 ROI 分母">
-              {formatMetric(facts.roi_denominator.current, 'currency')}
-            </Descriptions.Item>
-            <Descriptions.Item label="基准周期 ROI 分母">
-              {formatMetric(facts.roi_denominator.baseline, 'currency')}
-            </Descriptions.Item>
-            <Descriptions.Item label="完整率">
-              当前 {formatMetric(item.current_coverage_rate, 'percent', 1)} / 基准{' '}
-              {formatMetric(item.baseline_coverage_rate, 'percent', 1)}
-            </Descriptions.Item>
-            <Descriptions.Item label="主要时段">
-              {[...item.major_rise_hours, ...item.major_fall_hours].join('、') || '暂无'}
-            </Descriptions.Item>
-            <Descriptions.Item label="计算口径" span={2}>
-              {item.comparison_basis}
-            </Descriptions.Item>
-            <Descriptions.Item label="判断说明" span={2}>
-              {item.reasons.join('；') || item.suggestion}
-            </Descriptions.Item>
-          </Descriptions>
-          <Tabs
-            aria-label="主播趋势事实详情"
-            items={[
+        <div className="detail-drawer-content">
+          <DetailHero
+            id="anchor-trend-detail-title"
+            icon={<LineChartOutlined />}
+            iconTone="purple"
+            eyebrow="ANCHOR TREND FACT"
+            title={item.anchor_name}
+            badge={item.room_name}
+            statuses={[trendStatus, roiTargetStatus].filter(
+              (status): status is DetailStatus => status !== null,
+            )}
+            meta={`${facts.daily.length.toLocaleString('zh-CN')} 条逐日汇总 · ${facts.raw_records.length.toLocaleString('zh-CN')} 条原始事实`}
+            contexts={[
               {
-                key: 'daily',
-                label: '逐日汇总',
-                children: <DailyDetailTable facts={facts} />,
+                key: 'anchor',
+                label: '主播',
+                value: item.anchor_name,
+                icon: <UserOutlined aria-hidden />,
               },
               {
-                key: 'hours',
-                label: '24小时明细',
-                children: <HourDetailTable facts={facts} />,
+                key: 'room',
+                label: '直播间',
+                value: item.room_name,
+                icon: <DatabaseOutlined aria-hidden />,
               },
               {
-                key: 'raw',
-                label: '原始事实',
-                children: <RawFactsTable rows={facts.raw_records} />,
+                key: 'control',
+                label: '场控',
+                value: item.control_names.join('、') || '未记录',
+                icon: <TeamOutlined aria-hidden />,
+              },
+              {
+                key: 'period',
+                label: '对比周期',
+                value: event ? `${event.period_days} 天` : '等长周期',
+                icon: <CalendarOutlined aria-hidden />,
+              },
+            ]}
+            supplementary={[
+              {
+                key: 'current-period',
+                label: '当前周期',
+                value: event
+                  ? `${event.current_period_start} 至 ${event.current_period_end}`
+                  : '未记录',
+              },
+              {
+                key: 'baseline-period',
+                label: '基准周期',
+                value: event
+                  ? `${event.baseline_period_start} 至 ${event.baseline_period_end}`
+                  : '未记录',
+              },
+              {
+                key: 'coverage',
+                label: '数据完整率',
+                value: `当前 ${formatMetric(item.current_coverage_rate, 'percent', 1)} / 基准 ${formatMetric(item.baseline_coverage_rate, 'percent', 1)}`,
+              },
+              {
+                key: 'major-hours',
+                label: '主要变化时段',
+                value:
+                  [...item.major_rise_hours, ...item.major_fall_hours].join('、') || '暂无明显时段',
               },
             ]}
           />
-        </Space>
+
+          <section className="detail-section" aria-labelledby="anchor-trend-summary-title">
+            <DetailSectionHeading
+              id="anchor-trend-summary-title"
+              icon={<BarChartOutlined aria-hidden />}
+              kicker="PERIOD COMPARISON"
+              title="经营对比"
+              aside="当前周期与基准周期"
+            />
+            <DetailMetricGrid
+              wide
+              items={[
+                {
+                  key: 'current-roi',
+                  label: '当前周期 ROI',
+                  value: formatMetric(item.current_roi, 'ratio'),
+                  hint: '当前',
+                },
+                {
+                  key: 'baseline-roi',
+                  label: '基准周期 ROI',
+                  value: formatMetric(item.baseline_roi, 'ratio'),
+                  hint: '基准',
+                },
+                {
+                  key: 'roi-growth',
+                  label: 'ROI 变化',
+                  value: signedRate(item.roi_growth_rate),
+                  hint: '较基准',
+                  tone: trendStatus?.tone,
+                },
+                {
+                  key: 'roi-target',
+                  label: 'ROI 目标',
+                  value: formatMetric(item.roi_target, 'ratio'),
+                  hint: '目标',
+                  tone: roiTargetStatus?.tone,
+                },
+                {
+                  key: 'current-numerator',
+                  label: '当前周期 ROI 分子',
+                  value: formatMetric(facts.roi_numerator.current, 'currency'),
+                  hint: '当前',
+                },
+                {
+                  key: 'baseline-numerator',
+                  label: '基准周期 ROI 分子',
+                  value: formatMetric(facts.roi_numerator.baseline, 'currency'),
+                  hint: '基准',
+                },
+                {
+                  key: 'current-denominator',
+                  label: '当前周期 ROI 分母',
+                  value: formatMetric(facts.roi_denominator.current, 'currency'),
+                  hint: '当前',
+                },
+                {
+                  key: 'baseline-denominator',
+                  label: '基准周期 ROI 分母',
+                  value: formatMetric(facts.roi_denominator.baseline, 'currency'),
+                  hint: '基准',
+                },
+              ]}
+            />
+            <div className="detail-insight-grid">
+              <article>
+                <span>计算口径</span>
+                <strong>{item.comparison_basis}</strong>
+              </article>
+              <article>
+                <span>判断说明</span>
+                <strong>{item.reasons.join('；') || item.suggestion}</strong>
+              </article>
+            </div>
+          </section>
+
+          <section className="detail-section" aria-labelledby="anchor-trend-facts-title">
+            <DetailSectionHeading
+              id="anchor-trend-facts-title"
+              icon={<DatabaseOutlined aria-hidden />}
+              kicker="SOURCE FACTS"
+              title="事实明细"
+              aside="支持逐日、小时和原始事实核对"
+            />
+            <Tabs
+              className="detail-tabs"
+              aria-label="主播趋势事实详情"
+              items={[
+                {
+                  key: 'daily',
+                  label: `逐日汇总 (${facts.daily.length})`,
+                  children: (
+                    <div className="detail-table-wrap">
+                      <DailyDetailTable facts={facts} />
+                    </div>
+                  ),
+                },
+                {
+                  key: 'hours',
+                  label: `24 小时明细 (${facts.hours.length})`,
+                  children: (
+                    <div className="detail-table-wrap">
+                      <HourDetailTable facts={facts} />
+                    </div>
+                  ),
+                },
+                {
+                  key: 'raw',
+                  label: `原始事实 (${facts.raw_records.length})`,
+                  children: (
+                    <div className="detail-table-wrap">
+                      <RawFactsTable rows={facts.raw_records} />
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </section>
+        </div>
       )}
     </Drawer>
   )

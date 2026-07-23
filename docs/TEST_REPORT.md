@@ -344,6 +344,7 @@
 
 - 实现范围：小时趋势的数据点详情抽屉改为全站暖白卡片体系；基础字段中文化，状态转为“数据完整/待补录/缺失”和“排班一致/不一致/待实绩”等业务文案；指标按本时段、直播累计、实时快照和其他口径分组。
 - 完整数据：小时事实详情展示服务端返回的全部真实采集点、采集时间和有效/异常说明；采集点 `raw_payload` 仍可完整展开，没有删除或改写原始数据。
+
 - 单元测试：`DataPointDetailDrawer.test.tsx` 2/2 通过，覆盖中文字段、状态、指标分组、金额/ROI/人数格式、采集记录、英文键隐藏和原始字段默认折叠/展开。
 - 视觉证据：源截图与实现均归一化为 600 × 1200、`deviceScaleFactor=1`，同屏证据为 `docs/ui/evidence/after/data-point-detail-comparison.png`；390 × 844 手机截图验证单列布局。`design-qa.md` 检查字体、间距、颜色、图标资产和文案，最终 `passed`，无 P0/P1/P2/P3 遗留。
 - 浏览器交互：本地真实运行库只读验收 24/24 断言通过；600px 三组指标均为双列，390px 三组均为单列；46 个指标值无截断，页面与抽屉无横向溢出，关闭焦点恢复，控制台错误、失败请求和被阻断请求均为 0。
@@ -352,3 +353,16 @@
 - 数据保护：发布前 SQLite 在线备份为 `backups/live_ops_detail_ui_20260723T081103Z.sqlite3`，`PRAGMA integrity_check=ok`；自动测试使用隔离数据库和 Mock 飞书运输，手工视觉验收只允许本机只读 HTTP 请求，没有修改正式经营数据、账号、权限或发送真实飞书群消息。
 - 发布复核：功能提交 `21f7c48` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 入口为 `/assets/index-QE3-1PVU.js`，Timeline 分包为 `/assets/TimelinePage-CvIaT2DL.js`，样式为 `/assets/index-BcjKepA4.css`。
 - 线上资产：Timeline 分包返回 HTTP 200 并包含“本时段表现”“直播累计”“采集记录”“自然小时汇总”和 `timeline-detail-drawer`；CSS 返回 HTTP 200 并包含 `.detail-overview-card` 与 `.detail-metric-grid`。公网 `/ready` 返回 HTTP 200、`status=ready`、`mode=feishu`，数据库和 Redis 均为 `ok`。
+
+## 2026-07-23 阶段 35：全站业务详情界面统一
+
+- 实现范围：数据点详情、自然小时分时详情和主播趋势事实详情共用同一套暖白首卡、状态、上下文、章节和指标卡结构；设置、权限和账号编辑继续保持为操作表单。
+- 业务保持：原详情 API、房间权限、指标字典、逐日/小时/原始事实、时间线跳转、预警跳转和 CSV 导出均未改变；没有新增、推导或覆盖经营数据。
+- 定向组件测试：`DataPointDetailDrawer.test.tsx`、`HourlyRoiSpendSection.test.tsx`、`AlertsPage.test.tsx` 共 14/14 通过。
+- 详情 E2E：新增 `detail-drawers.spec.ts`，在 600×1200 隔离视口依次打开三类详情，验证标题、状态、八项核心指标、事实章节、抽屉边界和内部横向溢出，1/1 通过。
+- 视觉证据：三张同尺寸截图和 `docs/ui/evidence/after/all-detail-pages-comparison.png` 已复核；`design-qa.md` 未发现 P0/P1/P2/P3 问题，`final result: passed`。
+- React 专项审查：共享组件使用命名导出、稳定 key、语义化 `section/nav/article` 和图标+文字状态；发现并修正无障碍中文标签编码问题。
+- 首轮全量验收：后端、单测和构建通过；旧 E2E 仍按不带数量的“逐日汇总/24小时明细”精确文本查找而失败。已将测试契约改为匹配新数量标签，主流程单独复跑 1/1 通过。
+- 最终 `make.cmd check`：退出码 0；Ruff、mypy、ESLint、TypeScript、Prettier 全部通过；后端 189/189、前端 74/74、Playwright 7/7；覆盖率 85.90%；生产构建转换 5567 个模块，23 个 JS Chunk 全部 ≤650 KiB。
+- `make.cmd verify-production`：退出码 0；7 个服务、33 张表、迁移、强密钥策略、生产无夹具写入和 Docker 构建路径验证通过。Docker CLI 不可用，容器运行态未实启，完成的是等价 YAML/路径/安全静态校验。
+- 安全边界：浏览器测试使用 `e2e.db`、开发认证旁路和空飞书凭据；趋势重算只写隔离数据库，未访问正式经营库，未执行真实同步或飞书群推送。

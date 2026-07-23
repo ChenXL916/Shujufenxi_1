@@ -1,20 +1,26 @@
-import { useQuery } from '@tanstack/react-query'
 import {
-  Alert,
-  Button,
-  Descriptions,
-  Drawer,
-  Space,
-  Spin,
-  Table,
-  Tabs,
-  Tag,
-  Typography,
-} from 'antd'
+  AimOutlined,
+  BarChartOutlined,
+  CalendarOutlined,
+  ClockCircleOutlined,
+  DatabaseOutlined,
+  DownloadOutlined,
+  LineChartOutlined,
+  NotificationOutlined,
+} from '@ant-design/icons'
+import { useQuery } from '@tanstack/react-query'
+import { Button, Drawer, Table, Tabs } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { downloadHourlyComparison, getHourlyComparisonDetails } from '@/api/client'
+import { ErrorPanel, LoadingPanel } from '@/components/StatePanel'
+import {
+  DetailHero,
+  DetailMetricGrid,
+  DetailSectionHeading,
+  type DetailStatus,
+} from '@/features/detail-ui/DetailScaffold'
 import type {
   HourlyComparisonRequest,
   HourlySeriesPoint,
@@ -44,6 +50,14 @@ function numeric(value: NumericValue, unit: 'ratio' | 'currency' | 'percent'): s
     return value === null ? '—' : `${Number(value).toFixed(2)}%`
   }
   return formatMetric(value, unit)
+}
+
+const DIMENSION_LABELS: Record<HourlyComparisonRequest['seriesDimension'], string> = {
+  summary: '整体汇总',
+  room: '按直播间',
+  anchor: '按主播',
+  controller: '按场控',
+  room_anchor: '直播间与主播',
 }
 
 const dailyColumns: ColumnsType<DetailRecord> = [
@@ -108,43 +122,158 @@ const rawColumns: ColumnsType<DetailRecord> = [
   { title: '更新时间', dataIndex: 'updated_at', width: 180, render: valueText },
 ]
 
-function Summary({ point }: { point: HourlySeriesPoint | null }) {
+function statusTone(point: HourlySeriesPoint): DetailStatus['tone'] {
+  if (point.status.level === 'positive' || point.status.level === 'improving') return 'positive'
+  if (point.status.level === 'critical') return 'negative'
+  if (point.status.level === 'warning') return 'warning'
+  if (point.status.level === 'info') return 'info'
+  return 'neutral'
+}
+
+function Summary({
+  point,
+  hourLabel,
+  request,
+  dailyCount,
+  rawCount,
+}: {
+  point: HourlySeriesPoint | null
+  hourLabel: string
+  request: HourlyComparisonRequest
+  dailyCount: number
+  rawCount: number
+}) {
   if (!point) return null
+  const targetStatus: DetailStatus =
+    point.comparison_result.roi_target_reached === true
+      ? { label: 'ROI 已达标', tone: 'positive' }
+      : point.comparison_result.roi_target_reached === false
+        ? { label: 'ROI 未达标', tone: 'negative' }
+        : { label: '未配置达标结论', tone: 'neutral' }
+
   return (
-    <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 4 }} bordered>
-      <Descriptions.Item label="当前ROI">{numeric(point.current.roi, 'ratio')}</Descriptions.Item>
-      <Descriptions.Item label="目标ROI">{numeric(point.roi_target, 'ratio')}</Descriptions.Item>
-      <Descriptions.Item label="当前消耗">
-        {numeric(point.current.spend, 'currency')}
-      </Descriptions.Item>
-      <Descriptions.Item label="ROI涨幅">
-        {numeric(point.comparison_result.roi_growth_percentage, 'percent')}
-      </Descriptions.Item>
-      <Descriptions.Item label="消耗涨幅">
-        {numeric(point.comparison_result.spend_growth_percentage, 'percent')}
-      </Descriptions.Item>
-      <Descriptions.Item label="综合状态">
-        <Tag
-          color={
-            point.status.level === 'positive'
-              ? 'success'
-              : point.status.level === 'critical'
-                ? 'error'
-                : 'default'
-          }
-        >
-          {point.status.name}
-        </Tag>
-      </Descriptions.Item>
-      <Descriptions.Item label="数据完整率">
-        {point.current.coverage_rate === null
-          ? '暂无排班基准'
-          : numeric(Number(point.current.coverage_rate) * 100, 'percent')}
-      </Descriptions.Item>
-      <Descriptions.Item label="状态原因">
-        {point.status.reasons.join('；') || '暂无'}
-      </Descriptions.Item>
-    </Descriptions>
+    <>
+      <DetailHero
+        id="hourly-detail-title"
+        icon={<ClockCircleOutlined />}
+        iconTone="blue"
+        eyebrow="HOURLY COMPARISON"
+        title={`${hourLabel} 时段表现`}
+        badge="周期对比"
+        statuses={[{ label: point.status.name, tone: statusTone(point) }, targetStatus]}
+        meta={`${dailyCount.toLocaleString('zh-CN')} 条日明细 · ${rawCount.toLocaleString('zh-CN')} 条原始记录`}
+        contexts={[
+          {
+            key: 'hour',
+            label: '自然小时',
+            value: hourLabel,
+            icon: <ClockCircleOutlined aria-hidden />,
+          },
+          {
+            key: 'period-end',
+            label: '当前周期截止',
+            value: request.endDate ?? '最新完整日期',
+            icon: <CalendarOutlined aria-hidden />,
+          },
+          {
+            key: 'period-days',
+            label: '统计周期',
+            value: `${request.periodDays ?? 1} 天`,
+            icon: <LineChartOutlined aria-hidden />,
+          },
+          {
+            key: 'room-scope',
+            label: '直播间范围',
+            value: request.roomIds.length ? `${request.roomIds.length} 个直播间` : '全部授权直播间',
+            icon: <DatabaseOutlined aria-hidden />,
+          },
+        ]}
+        supplementary={[
+          {
+            key: 'aggregation',
+            label: '统计口径',
+            value: request.aggregationMode === 'sum' ? '周期汇总' : '按日平均',
+          },
+          {
+            key: 'dimension',
+            label: '拆分维度',
+            value: DIMENSION_LABELS[request.seriesDimension],
+          },
+          {
+            key: 'reason',
+            label: '状态依据',
+            value: point.status.reasons.join('；') || '当前时段没有额外异常说明',
+          },
+        ]}
+      />
+
+      <section className="detail-section" aria-labelledby="hourly-summary-title">
+        <DetailSectionHeading
+          id="hourly-summary-title"
+          icon={<BarChartOutlined aria-hidden />}
+          kicker="PERFORMANCE SUMMARY"
+          title="核心表现"
+          aside="当前周期与基准周期对比"
+        />
+        <DetailMetricGrid
+          wide
+          items={[
+            {
+              key: 'current-roi',
+              label: '当前周期 ROI',
+              value: numeric(point.current.roi, 'ratio'),
+              hint: '当前',
+            },
+            {
+              key: 'baseline-roi',
+              label: '基准周期 ROI',
+              value: numeric(point.comparison?.roi ?? null, 'ratio'),
+              hint: '基准',
+            },
+            {
+              key: 'roi-target',
+              label: 'ROI 目标',
+              value: numeric(point.roi_target, 'ratio'),
+              hint: '目标',
+              tone: targetStatus.tone,
+            },
+            {
+              key: 'roi-growth',
+              label: 'ROI 涨幅',
+              value: numeric(point.comparison_result.roi_growth_percentage, 'percent'),
+              hint: '较基准',
+            },
+            {
+              key: 'current-spend',
+              label: '当前周期消耗',
+              value: numeric(point.current.spend, 'currency'),
+              hint: '当前',
+            },
+            {
+              key: 'baseline-spend',
+              label: '基准周期消耗',
+              value: numeric(point.comparison?.spend ?? null, 'currency'),
+              hint: '基准',
+            },
+            {
+              key: 'spend-growth',
+              label: '消耗涨幅',
+              value: numeric(point.comparison_result.spend_growth_percentage, 'percent'),
+              hint: '较基准',
+            },
+            {
+              key: 'coverage',
+              label: '数据完整率',
+              value:
+                point.current.coverage_rate === null
+                  ? '暂无排班基准'
+                  : numeric(Number(point.current.coverage_rate) * 100, 'percent'),
+              hint: '当前',
+            },
+          ]}
+        />
+      </section>
+    </>
   )
 }
 
@@ -169,98 +298,120 @@ export function HourlyDetailDrawer({
   })
   const hourLabel = hour ? `${hour.slice(0, 2)}:00-${hour.slice(3)}:00` : ''
   const table = (rows: Array<Record<string, unknown>>, columns: ColumnsType<DetailRecord>) => (
-    <Table<DetailRecord>
-      size="small"
-      rowKey={(row) =>
-        row.id ?? `${row.period_type ?? ''}-${row.date ?? ''}-${row.room ?? ''}-${row.metric ?? ''}`
-      }
-      dataSource={rows}
-      columns={columns}
-      pagination={false}
-      scroll={{ x: 'max-content', y: 440 }}
-    />
+    <div className="detail-table-wrap">
+      <Table<DetailRecord>
+        size="small"
+        rowKey={(row) =>
+          row.id ??
+          `${row.period_type ?? ''}-${row.date ?? ''}-${row.room ?? ''}-${row.metric ?? ''}`
+        }
+        dataSource={rows}
+        columns={columns}
+        pagination={false}
+        scroll={{ x: 'max-content', y: 440 }}
+      />
+    </div>
   )
   return (
     <Drawer
       open={open}
       size="large"
-      rootClassName="hourly-detail-drawer"
+      rootClassName="detail-drawer hourly-detail-drawer"
       title={`${hourLabel} 分时详情`}
       onClose={onClose}
       destroyOnHidden
-      extra={
-        <Space wrap>
-          <Button
-            onClick={() =>
-              void navigate(
-                `/timeline?end=${request.endDate ?? ''}&rooms=${request.roomIds.join(',')}&hours=${hour ?? ''}`,
-              )
-            }
-          >
-            查看原小时趋势
-          </Button>
-          <Button onClick={() => void navigate('/alerts')}>查看相关预警</Button>
-          <Button onClick={() => void downloadHourlyComparison(request)}>导出CSV</Button>
-        </Space>
-      }
     >
       {details.isLoading ? (
-        <div className="hourly-drawer-loading">
-          <Spin />
-          <Typography.Text>加载分时详情…</Typography.Text>
-        </div>
+        <LoadingPanel />
       ) : details.isError ? (
-        <Alert
-          type="error"
-          showIcon
-          title="分时详情加载失败"
-          action={<Button onClick={() => void details.refetch()}>重试</Button>}
-        />
+        <ErrorPanel onRetry={() => void details.refetch()} />
       ) : details.data ? (
-        <Space orientation="vertical" size={16} className="drawer-stack">
-          <Summary point={details.data.summary[0] ?? null} />
-          <Tabs
-            items={[
-              {
-                key: 'date',
-                label: '按日期',
-                children: table(details.data.daily_rows, dailyColumns),
-              },
-              {
-                key: 'room',
-                label: '按直播间',
-                children: table(details.data.room_rows, roomColumns),
-              },
-              {
-                key: 'kline',
-                label: '业务K线明细',
-                children: table(details.data.kline_rows, klineColumns),
-              },
-              {
-                key: 'raw',
-                label: `原始记录 (${details.data.raw_total})`,
-                children: (
-                  <Table<DetailRecord>
-                    size="small"
-                    rowKey={(row) =>
-                      row.id ?? `${row.date ?? ''}-${row.room ?? ''}-${row.period_type ?? 'raw'}`
-                    }
-                    dataSource={details.data.raw_records}
-                    columns={rawColumns}
-                    scroll={{ x: 'max-content', y: 440 }}
-                    pagination={{
-                      current: page,
-                      pageSize: details.data.page_size,
-                      total: details.data.raw_total,
-                      showSizeChanger: false,
-                      onChange: setPage,
-                    }}
-                  />
-                ),
-              },
-            ]}
+        <div className="detail-drawer-content">
+          <Summary
+            point={details.data.summary[0] ?? null}
+            hourLabel={hourLabel}
+            request={request}
+            dailyCount={details.data.daily_rows.length}
+            rawCount={details.data.raw_total}
           />
-        </Space>
+
+          <nav className="detail-action-bar" aria-label="分时详情操作">
+            <Button
+              icon={<LineChartOutlined />}
+              onClick={() =>
+                void navigate(
+                  `/timeline?end=${request.endDate ?? ''}&rooms=${request.roomIds.join(',')}&hours=${hour ?? ''}`,
+                )
+              }
+            >
+              查看原小时趋势
+            </Button>
+            <Button icon={<NotificationOutlined />} onClick={() => void navigate('/alerts')}>
+              查看相关预警
+            </Button>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={() => void downloadHourlyComparison(request)}
+            >
+              导出 CSV
+            </Button>
+          </nav>
+
+          <section className="detail-section" aria-labelledby="hourly-facts-title">
+            <DetailSectionHeading
+              id="hourly-facts-title"
+              icon={<AimOutlined aria-hidden />}
+              kicker="SOURCE FACTS"
+              title="明细数据"
+              aside="按业务视角切换"
+            />
+            <Tabs
+              className="detail-tabs"
+              items={[
+                {
+                  key: 'date',
+                  label: `按日期 (${details.data.daily_rows.length})`,
+                  children: table(details.data.daily_rows, dailyColumns),
+                },
+                {
+                  key: 'room',
+                  label: `按直播间 (${details.data.room_rows.length})`,
+                  children: table(details.data.room_rows, roomColumns),
+                },
+                {
+                  key: 'kline',
+                  label: `业务 K 线 (${details.data.kline_rows.length})`,
+                  children: table(details.data.kline_rows, klineColumns),
+                },
+                {
+                  key: 'raw',
+                  label: `原始记录 (${details.data.raw_total})`,
+                  children: (
+                    <div className="detail-table-wrap">
+                      <Table<DetailRecord>
+                        size="small"
+                        rowKey={(row) =>
+                          row.id ??
+                          `${row.date ?? ''}-${row.room ?? ''}-${row.period_type ?? 'raw'}`
+                        }
+                        dataSource={details.data.raw_records}
+                        columns={rawColumns}
+                        scroll={{ x: 'max-content', y: 440 }}
+                        pagination={{
+                          current: page,
+                          pageSize: details.data.page_size,
+                          total: details.data.raw_total,
+                          showSizeChanger: false,
+                          onChange: setPage,
+                        }}
+                      />
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </section>
+        </div>
       ) : null}
     </Drawer>
   )
