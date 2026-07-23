@@ -350,3 +350,5 @@
 - 完整门禁：`make.cmd check` 退出 0。Ruff、ESLint、mypy、TypeScript 和 Prettier 通过；189 个后端测试通过，领域与服务覆盖率 85.90%；19 个前端测试文件/74 个单元测试通过；生产构建的 22 个 JS Chunk 全部不超过 650 KiB；6 个 Chromium E2E 通过。
 - 生产验证：`make.cmd verify-production` 退出 0，验证 7 个服务、33 张表、迁移、生产强密钥、关闭开发旁路、无 fixture 写入和 Docker 构建路径。本机没有 Docker CLI，因此容器运行态完成 YAML、路径与安全静态等价验收。
 - 数据保护：发布前 SQLite 在线备份为 `backups/live_ops_detail_ui_20260723T081103Z.sqlite3`，`PRAGMA integrity_check=ok`；自动测试使用隔离数据库和 Mock 飞书运输，手工视觉验收只允许本机只读 HTTP 请求，没有修改正式经营数据、账号、权限或发送真实飞书群消息。
+- 发布复核：功能提交 `21f7c48` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 入口为 `/assets/index-QE3-1PVU.js`，Timeline 分包为 `/assets/TimelinePage-CvIaT2DL.js`，样式为 `/assets/index-BcjKepA4.css`。
+- 线上资产：Timeline 分包返回 HTTP 200 并包含“本时段表现”“直播累计”“采集记录”“自然小时汇总”和 `timeline-detail-drawer`；CSS 返回 HTTP 200 并包含 `.detail-overview-card` 与 `.detail-metric-grid`。公网 `/ready` 返回 HTTP 200、`status=ready`、`mode=feishu`，数据库和 Redis 均为 `ok`。

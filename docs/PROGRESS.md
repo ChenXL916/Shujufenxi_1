@@ -505,3 +505,5 @@
 - [x] 最终 `make.cmd check` 退出 0：189 个后端测试、19 个前端测试文件/74 个单元测试、22 个不超过 650 KiB 的生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.90%。
 - [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器运行态完成 YAML、路径和安全静态等价验收。
 - [x] 发布前在线备份 `live_ops_test.db` 到 `backups/live_ops_detail_ui_20260723T081103Z.sqlite3`，完整性为 `ok`；自动测试和视觉验收没有修改正式经营数据、账号、权限或发送真实飞书群消息。
+- [x] 功能提交 `21f7c48` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 已发布入口 `/assets/index-QE3-1PVU.js`、详情分包 `/assets/TimelinePage-CvIaT2DL.js` 和样式 `/assets/index-BcjKepA4.css`。
+- [x] 线上详情分包包含“本时段表现”“直播累计”“采集记录”“自然小时汇总”和新抽屉类名，线上 CSS 包含概览卡与指标网格；公网 `/ready` 返回 HTTP 200、`ready / feishu`，数据库与 Redis 均为 `ok`。
