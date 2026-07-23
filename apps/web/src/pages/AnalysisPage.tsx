@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Card, Space, Table } from 'antd'
+import { useMemo } from 'react'
 import { getAnalysis, getFilterOptions } from '@/api/client'
 import { FilterBar } from '@/components/FilterBar'
 import { PageHeader } from '@/components/PageHeader'
@@ -7,6 +8,17 @@ import { EmptyPanel, ErrorPanel, LoadingPanel } from '@/components/StatePanel'
 import { useDashboardFilters } from '@/hooks/useDashboardFilters'
 import type { AnalysisRow } from '@/types/dashboard'
 import { formatMetric } from '@/utils/format'
+
+const DEFAULT_ANALYSIS_METRICS = [
+  'period_overall_amount',
+  'period_spend',
+  'period_overall_roi',
+  'period_net_roi',
+  'period_order_count',
+  'period_overall_order_cost',
+  'period_viewers',
+  'period_buyers',
+] as const
 
 const copy = {
   anchors: ['主播分析', '排名至少结合有效小时与消耗门槛判断，不把短样本直接当成结论。'],
@@ -23,51 +35,55 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
     enabled: Boolean(filters.startDate),
   })
   const [title, subtitle] = copy[dimension]
-  const columns = [
-    {
-      title: dimension === 'anchors' ? '主播' : dimension === 'controls' ? '场控' : '主播 × 场控',
-      dataIndex: 'name',
-      fixed: 'left' as const,
-      width: 180,
-    },
-    { title: '有效小时', dataIndex: 'valid_hours', align: 'right' as const, width: 100 },
-    { title: '直播间数', dataIndex: 'room_count', align: 'right' as const, width: 100 },
-    {
-      title: '成交金额',
-      dataIndex: 'period_overall_amount',
-      align: 'right' as const,
-      render: (value: AnalysisRow['period_overall_amount']) => formatMetric(value, 'currency'),
-    },
-    {
-      title: '消耗',
-      dataIndex: 'period_spend',
-      align: 'right' as const,
-      render: (value: AnalysisRow['period_spend']) => formatMetric(value, 'currency'),
-    },
-    {
-      title: '汇总 ROI',
-      dataIndex: 'period_overall_roi',
-      align: 'right' as const,
-      render: (value: AnalysisRow['period_overall_roi']) => formatMetric(value, 'ratio'),
-    },
-    {
-      title: '订单数',
-      dataIndex: 'period_order_count',
-      align: 'right' as const,
-      render: (value: AnalysisRow['period_order_count']) => formatMetric(value, 'count', 0),
-    },
-    {
-      title: '订单成本',
-      dataIndex: 'period_overall_order_cost',
-      align: 'right' as const,
-      render: (value: AnalysisRow['period_overall_order_cost']) => formatMetric(value, 'currency'),
-    },
-  ]
+  const selectedMetricKeys = useMemo(
+    () => (filters.metricKeys.length ? filters.metricKeys : [...DEFAULT_ANALYSIS_METRICS]),
+    [filters.metricKeys],
+  )
+  const selectedMetrics = useMemo(
+    () =>
+      selectedMetricKeys
+        .map((key) => options.data?.metrics.find((metric) => metric.key === key))
+        .filter((metric) => metric !== undefined),
+    [options.data?.metrics, selectedMetricKeys],
+  )
+  const columns = useMemo(
+    () => [
+      {
+        title: dimension === 'anchors' ? '主播' : dimension === 'controls' ? '场控' : '主播 × 场控',
+        dataIndex: 'name',
+        fixed: 'left' as const,
+        width: 180,
+      },
+      { title: '有效小时', dataIndex: 'valid_hours', align: 'right' as const, width: 100 },
+      { title: '直播间数', dataIndex: 'room_count', align: 'right' as const, width: 100 },
+      ...selectedMetrics.map((metric) => ({
+        title: metric.name,
+        dataIndex: metric.key,
+        align: 'right' as const,
+        width: 150,
+        render: (value: string | number | null) =>
+          formatMetric(value, metric.unit, metric.precision),
+      })),
+    ],
+    [dimension, selectedMetrics],
+  )
   return (
     <Space orientation="vertical" size={16} className="page-stack">
       <PageHeader title={title} description={subtitle} eyebrow="PEOPLE PERFORMANCE" />
-      <FilterBar options={options.data} filters={filters} update={update} reset={reset} />
-      <Card className="data-card">
+      <FilterBar
+        options={options.data}
+        filters={filters}
+        update={update}
+        reset={reset}
+        showMetrics
+        showGrain={false}
+        showPeriodPresets
+      />
+      <Card
+        className="data-card"
+        title={`${title}数据`}
+        extra={`已选 ${selectedMetricKeys.length} 个指标`}
+      >
         {analysis.isLoading ? (
           <LoadingPanel />
         ) : analysis.isError ? (
@@ -78,7 +94,7 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
           <Table<AnalysisRow>
             rowKey="key"
             sticky
-            scroll={{ x: 1120, y: 620 }}
+            scroll={{ x: 380 + selectedMetrics.length * 150, y: 620 }}
             pagination={{ pageSize: 20 }}
             dataSource={analysis.data}
             columns={columns}

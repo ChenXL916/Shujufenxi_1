@@ -298,7 +298,11 @@ export async function getAnalysis(
   filters: DashboardFilters,
 ): Promise<AnalysisRow[]> {
   const path = dimension === 'pairings' ? '/analytics/pairings' : `/analytics/${dimension}/summary`
-  return (await client.get<AnalysisRow[]>(path, { params: params(filters) })).data
+  return (
+    await client.get<AnalysisRow[]>(path, {
+      params: { ...params(filters), metric_keys: filters.metricKeys },
+    })
+  ).data
 }
 export async function getComparisons(
   filters: DashboardFilters,

@@ -59,14 +59,14 @@ class DashboardFilters:
 
 class DashboardQueryService:
     DEFAULT_KPIS = (
-        "period_gmv",
-        "period_paid_amount",
+        "period_overall_amount",
         "period_spend",
         "period_overall_roi",
         "period_net_roi",
         "period_order_count",
         "period_overall_order_cost",
         "period_viewers",
+        "period_buyers",
     )
 
     def __init__(self, session: Session, catalog: MetricCatalog, access: AccessScope) -> None:

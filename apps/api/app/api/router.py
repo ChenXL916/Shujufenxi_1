@@ -138,12 +138,13 @@ def anchor_summary(
     anchor_members: Annotated[list[str] | None, Query()] = None,
     control_names: Annotated[list[str] | None, Query()] = None,
     hour_slots: Annotated[list[str] | None, Query()] = None,
+    metric_keys: Annotated[list[str] | None, Query()] = None,
 ) -> list[dict[str, object]]:
     filters = filters_from_query(
         start_date, end_date, room_ids, anchor_names, anchor_members, control_names, hour_slots
     )
     access.assert_rooms(filters.room_ids)
-    return AnalysisService(db, CATALOG, access).summary("anchor", filters)
+    return AnalysisService(db, CATALOG, access).summary("anchor", filters, tuple(metric_keys or ()))
 
 
 @router.get("/analytics/controls/summary")
@@ -157,12 +158,15 @@ def control_summary(
     anchor_members: Annotated[list[str] | None, Query()] = None,
     control_names: Annotated[list[str] | None, Query()] = None,
     hour_slots: Annotated[list[str] | None, Query()] = None,
+    metric_keys: Annotated[list[str] | None, Query()] = None,
 ) -> list[dict[str, object]]:
     filters = filters_from_query(
         start_date, end_date, room_ids, anchor_names, anchor_members, control_names, hour_slots
     )
     access.assert_rooms(filters.room_ids)
-    return AnalysisService(db, CATALOG, access).summary("control", filters)
+    return AnalysisService(db, CATALOG, access).summary(
+        "control", filters, tuple(metric_keys or ())
+    )
 
 
 @router.get("/analytics/pairings")
@@ -176,12 +180,15 @@ def pairing_summary(
     anchor_members: Annotated[list[str] | None, Query()] = None,
     control_names: Annotated[list[str] | None, Query()] = None,
     hour_slots: Annotated[list[str] | None, Query()] = None,
+    metric_keys: Annotated[list[str] | None, Query()] = None,
 ) -> list[dict[str, object]]:
     filters = filters_from_query(
         start_date, end_date, room_ids, anchor_names, anchor_members, control_names, hour_slots
     )
     access.assert_rooms(filters.room_ids)
-    return AnalysisService(db, CATALOG, access).summary("pairing", filters)
+    return AnalysisService(db, CATALOG, access).summary(
+        "pairing", filters, tuple(metric_keys or ())
+    )
 
 
 @router.get("/comparisons")

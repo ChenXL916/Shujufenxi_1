@@ -13,6 +13,7 @@ interface Props {
   update: (patch: Partial<DashboardFilters>) => void
   reset: () => void
   showMetrics?: boolean
+  showGrain?: boolean
   showPeriodPresets?: boolean
 }
 
@@ -25,6 +26,7 @@ export function FilterBar({
   update,
   reset,
   showMetrics = false,
+  showGrain = showMetrics,
   showPeriodPresets = false,
 }: Props) {
   const mobile = useMediaQuery('(max-width: 768px)')
@@ -248,7 +250,7 @@ export function FilterBar({
             className="metric-select"
           />
         ) : null}
-        {showMetrics ? (
+        {showMetrics && showGrain ? (
           <Segmented
             aria-label="数据粒度"
             value={filters.grain}

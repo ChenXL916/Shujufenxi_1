@@ -3,12 +3,15 @@ from decimal import Decimal
 from time import perf_counter
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+import app.api.router as api_router_module
 from app.auth.dependencies import AccessScope, get_access_scope
+from app.core.config import Settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
@@ -62,7 +65,14 @@ def test_overview_rejects_reversed_date_range() -> None:
     assert "日期" in response.json()["detail"]
 
 
-def test_overview_timeline_and_details_follow_hour_axis_contract() -> None:
+def test_overview_timeline_and_details_follow_hour_axis_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        api_router_module,
+        "load_runtime_settings",
+        lambda _session: Settings(app_env="test", _env_file=None),
+    )
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -152,6 +162,7 @@ def test_overview_timeline_and_details_follow_hour_axis_contract() -> None:
             "period_overall_orders": "10",
             "period_overall_order_cost": "10",
             "period_viewers": "1000",
+            "period_buyers": "8",
         }.items():
             session.add(
                 HourlyMetric(
@@ -359,6 +370,14 @@ def test_overview_timeline_and_details_follow_hour_axis_contract() -> None:
             "/api/v1/analytics/anchors/summary",
             params={"start_date": "2026-07-08", "end_date": "2026-07-08"},
         )
+        buyer_only_anchors = client.get(
+            "/api/v1/analytics/anchors/summary",
+            params=[
+                ("start_date", "2026-07-08"),
+                ("end_date", "2026-07-08"),
+                ("metric_keys", "period_buyers"),
+            ],
+        )
         pivot = client.get(
             "/api/v1/pivot/anchor-control",
             params={"start_date": "2026-07-08", "end_date": "2026-07-08"},
@@ -416,7 +435,20 @@ def test_overview_timeline_and_details_follow_hour_axis_contract() -> None:
         == 200
     )
     assert options.json()["rooms"][0]["name"] == "动态测试直播间"
-    assert any(item["metric_key"] == "period_overall_roi" for item in overview.json()["kpis"])
+    overview_kpis = overview.json()["kpis"]
+    assert [item["metric_key"] for item in overview_kpis] == [
+        "period_overall_amount",
+        "period_spend",
+        "period_overall_roi",
+        "period_net_roi",
+        "period_order_count",
+        "period_overall_order_cost",
+        "period_viewers",
+        "period_buyers",
+    ]
+    assert overview_kpis[0]["name"] == "时段整体成交金额"
+    assert overview_kpis[-1]["name"] == "时段成交人数"
+    assert Decimal(str(overview_kpis[-1]["value"])) == Decimal("8")
     assert Decimal(overview.json()["data_completeness"]) == Decimal("0.5")
     assert overview.json()["active_alerts"] == 1
     assert future_overview.status_code == 200
@@ -435,6 +467,10 @@ def test_overview_timeline_and_details_follow_hour_axis_contract() -> None:
     assert member_filtered_point_timeline.json()["groups"] == []
     assert anchors.status_code == pivot.status_code == comparison.status_code == 200
     assert anchors.json()[0]["name"] == "Q-李昕"
+    assert Decimal(str(anchors.json()[0]["period_buyers"])) == Decimal("8")
+    assert buyer_only_anchors.status_code == 200
+    assert Decimal(str(buyer_only_anchors.json()[0]["period_buyers"])) == Decimal("8")
+    assert "period_overall_amount" not in buyer_only_anchors.json()[0]
     assert pivot.json()[0]["children"][0]["level"] == "control"
     assert exported.status_code == 200
     assert exported.content.startswith(b"PK")

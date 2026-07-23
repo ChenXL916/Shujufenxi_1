@@ -120,6 +120,7 @@ export interface DashboardFilters {
   grain: Grain
 }
 export interface AnalysisRow {
+  [metricKey: string]: string | number | null
   key: string
   name: string
   valid_hours: number
@@ -127,9 +128,11 @@ export interface AnalysisRow {
   period_overall_amount: string | number | null
   period_spend: string | number | null
   period_overall_roi: string | number | null
+  period_net_roi: string | number | null
   period_order_count: string | number | null
   period_overall_order_cost: string | number | null
   period_viewers: string | number | null
+  period_buyers: string | number | null
 }
 export interface ComparisonRow extends ComparisonPayload {
   metric_key: string

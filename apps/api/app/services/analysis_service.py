@@ -23,14 +23,17 @@ Dimension = Literal["anchor", "control", "pairing"]
 
 
 class AnalysisService:
-    METRICS = (
+    DEFAULT_METRICS = (
         "period_overall_amount",
         "period_spend",
         "period_overall_roi",
+        "period_net_roi",
         "period_order_count",
         "period_overall_order_cost",
         "period_viewers",
+        "period_buyers",
     )
+    METRICS = DEFAULT_METRICS
 
     def __init__(
         self,
@@ -43,7 +46,13 @@ class AnalysisService:
         self.access = access
         self.dashboard = DashboardQueryService(session, catalog, access)
 
-    def summary(self, dimension: Dimension, filters: DashboardFilters) -> list[dict[str, Any]]:
+    def summary(
+        self,
+        dimension: Dimension,
+        filters: DashboardFilters,
+        metric_keys: tuple[str, ...] = (),
+    ) -> list[dict[str, Any]]:
+        selected_metrics = self._selected_metrics(metric_keys)
         facts = self.dashboard._facts(filters)
         grouped: dict[str, list[HourlyFact]] = defaultdict(list)
         for fact in facts:
@@ -54,16 +63,29 @@ class AnalysisService:
         for label, group in grouped.items():
             observations = self.dashboard._observations(group)
             row: dict[str, Any] = {"key": label, "name": label, "valid_hours": len(group)}
-            for metric in self.METRICS:
+            for metric in selected_metrics:
                 row[metric] = aggregate_metric(metric, observations, self.catalog)
             rooms = {str(fact.room_id) for fact in group}
             row["room_count"] = len(rooms)
             rows.append(row)
         return sorted(
             rows,
-            key=lambda row: row["period_overall_amount"] or Decimal(0),
+            key=lambda row: self._sort_value(row, selected_metrics),
             reverse=True,
         )
+
+    def _selected_metrics(self, metric_keys: tuple[str, ...]) -> tuple[str, ...]:
+        requested = metric_keys or self.DEFAULT_METRICS
+        return tuple(dict.fromkeys(key for key in requested if key in self.catalog.by_key))
+
+    @staticmethod
+    def _sort_value(row: dict[str, Any], metric_keys: tuple[str, ...]) -> Decimal:
+        preferred = "period_overall_amount"
+        if preferred in row:
+            return row[preferred] or Decimal(0)
+        if metric_keys:
+            return row.get(metric_keys[0]) or Decimal(0)
+        return Decimal(row["valid_hours"])
 
     def comparisons(
         self,

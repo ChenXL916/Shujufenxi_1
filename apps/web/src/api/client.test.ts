@@ -26,10 +26,24 @@ import {
   buildAnchorTrendParams,
   deletePermissionUser,
   ensureJsonApiResponse,
+  getAnalysis,
   serializeQueryParams,
   syncFeishuNow,
   updatePermissionUserCredentials,
 } from './client'
+
+const dashboardFilters = {
+  startDate: '2026-07-08',
+  endDate: '2026-07-08',
+  dateMode: 'day' as const,
+  roomIds: [],
+  anchors: [],
+  anchorMembers: [],
+  controls: [],
+  hours: [],
+  metricKeys: ['period_buyers'],
+  grain: 'hour' as const,
+}
 
 describe('ensureJsonApiResponse', () => {
   const response = (contentType: string, responseType?: 'blob') =>
@@ -120,6 +134,27 @@ describe('serializeQueryParams', () => {
     const query = new URLSearchParams(serialized)
 
     expect(query.has('minimum_coverage_rate')).toBe(false)
+  })
+})
+
+describe('getAnalysis', () => {
+  it('passes selected analysis metrics to the summary API', async () => {
+    axiosGet.mockResolvedValueOnce({ data: [] })
+
+    await getAnalysis('anchors', dashboardFilters)
+
+    expect(axiosGet).toHaveBeenCalledWith('/analytics/anchors/summary', {
+      params: {
+        start_date: '2026-07-08',
+        end_date: '2026-07-08',
+        room_ids: [],
+        anchor_names: [],
+        anchor_members: [],
+        control_names: [],
+        hour_slots: [],
+        metric_keys: ['period_buyers'],
+      },
+    })
   })
 })
 
