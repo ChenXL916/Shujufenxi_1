@@ -395,3 +395,5 @@
 - [x] 在原飞书身份上启用独立网页登录，未新建重复用户，保留原飞书绑定、开发者角色与全部数据权限；密码只交付给所有者，不写入代码、文档、日志或 Git。
 - [x] 操作前生成 SQLite 在线备份 `backups/live_ops_account_20260723T012406Z.sqlite3`，账号变更写入脱敏权限审计。
 - [x] 公网验证通过：密码登录 HTTP 200、`/auth/me` HTTP 200、返回角色 `developer`；退出 HTTP 204，退出后 `/auth/me` HTTP 401。
+- [x] 按所有者要求将既有账号登录名从 `chenjiaqi` 改为 `1058177562`；变更前生成 `backups/live_ops_username_20260723T012722Z.sqlite3`，确认新登录名无冲突并写入脱敏权限审计，密码、飞书绑定及 `developer` 权限保持不变。
+- [x] 修复该账号密码哈希与已交付密码不一致的问题；最终正式 HTTPS 验证为登录 HTTP 200、`/auth/me` HTTP 200、角色 `developer`、退出 HTTP 204、退出后 HTTP 401，旧登录名记录数为 0。

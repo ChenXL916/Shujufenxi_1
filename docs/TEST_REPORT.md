@@ -258,3 +258,5 @@
 - 数据保护：修改前完成 SQLite 在线备份 `backups/live_ops_account_20260723T012406Z.sqlite3`，并写入不含密码的权限审计记录。
 - 公网冒烟：`POST /auth/password/login` HTTP 200，`GET /auth/me` HTTP 200 且角色为 `developer`；退出 HTTP 204，退出后会话查询 HTTP 401。
 - 变更边界：本阶段仅修改生产账号凭据与审计数据，没有代码、数据库结构或部署配置变更，因此沿用阶段 25 已通过的完整 `make.cmd check` 和 `make.cmd verify-production` 门禁结果。
+- 登录名调整：所有者账号登录名从 `chenjiaqi` 改为 `1058177562`；修改前生成 `backups/live_ops_username_20260723T012722Z.sqlite3`，数据库确认新登录名唯一、旧登录名记录数为 0，身份、飞书绑定和 `developer` 权限未改变。
+- 密码恢复与最终验证：发现原密码哈希已不再匹配后，在不记录明文密码的前提下重新生成哈希并写入脱敏审计。正式 HTTPS 入口登录 HTTP 200、`/auth/me` HTTP 200 且返回“陈佳琪 / developer”，退出 HTTP 204，退出后 `/auth/me` HTTP 401。
