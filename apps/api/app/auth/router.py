@@ -6,7 +6,17 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Cookie,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field, SecretStr, field_validator
 from sqlalchemy import func, or_, select
@@ -25,6 +35,7 @@ from app.integrations.feishu.client import FeishuError
 from app.integrations.feishu.oauth_store import FeishuOAuthStore, FeishuReauthorizationRequired
 from app.models.entities import RoomResource, SourceConfig, User
 from app.services.feishu_sync_service import sync_configured_sources
+from app.services.manual_sync_service import manual_sync_registry, run_manual_feishu_sync
 from app.services.permission_service import (
     provision_feishu_user,
     record_permission_audit,
@@ -287,14 +298,23 @@ def feishu_status(db: DbSession, access: Access) -> dict[str, object]:
     return response
 
 
-@router.post("/feishu/sync")
-async def sync_feishu_now(access: SyncAccess) -> dict[str, Any]:
-    try:
-        return await sync_configured_sources("live_actual")
-    except FeishuReauthorizationRequired as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
-    except FeishuError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+@router.post("/feishu/sync", status_code=status.HTTP_202_ACCEPTED)
+async def sync_feishu_now(
+    background_tasks: BackgroundTasks,
+    access: SyncAccess,
+) -> dict[str, Any]:
+    job, created = manual_sync_registry.start(str(access.user_id) if access.user_id else None)
+    if created:
+        background_tasks.add_task(run_manual_feishu_sync, str(job["job_id"]))
+    return {**job, "accepted": created}
+
+
+@router.get("/feishu/sync/{job_id}")
+def feishu_sync_status(job_id: str, access: SyncAccess) -> dict[str, Any]:
+    job = manual_sync_registry.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="同步任务状态已过期，请重新点击立即同步")
+    return job
 
 
 @router.post("/logout")

@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AxiosResponse } from 'axios'
 
 const axiosPost = vi.hoisted(() => vi.fn())
+const axiosGet = vi.hoisted(() => vi.fn())
 const axiosResponseUse = vi.hoisted(() => vi.fn())
 
 vi.mock('axios', () => ({
@@ -12,6 +13,7 @@ vi.mock('axios', () => ({
         response: { use: axiosResponseUse },
       },
       post: axiosPost,
+      get: axiosGet,
     })),
   },
 }))
@@ -116,14 +118,65 @@ describe('serializeQueryParams', () => {
 })
 
 describe('syncFeishuNow', () => {
-  it('allows enough time for the real multi-source Feishu import to finish', async () => {
-    axiosPost.mockResolvedValueOnce({ data: { status: 'completed' } })
+  beforeEach(() => {
+    axiosPost.mockReset()
+    axiosGet.mockReset()
+  })
 
-    await expect(syncFeishuNow()).resolves.toEqual({ status: 'completed' })
+  it('starts a background sync and polls until the real import completes', async () => {
+    vi.useFakeTimers()
+    axiosPost.mockResolvedValueOnce({
+      data: { job_id: 'job-1', status: 'queued' },
+    })
+    axiosGet
+      .mockResolvedValueOnce({ data: { job_id: 'job-1', status: 'running' } })
+      .mockResolvedValueOnce({ data: { job_id: 'job-1', status: 'completed' } })
+
+    const result = syncFeishuNow()
+    await vi.runAllTimersAsync()
+
+    await expect(result).resolves.toMatchObject({ job_id: 'job-1', status: 'completed' })
+
+    expect(axiosGet).toHaveBeenCalledTimes(2)
+    expect(axiosGet).toHaveBeenLastCalledWith('/auth/feishu/sync/job-1', {
+      baseURL: '/',
+      timeout: 15_000,
+    })
 
     expect(axiosPost).toHaveBeenCalledWith('/auth/feishu/sync', null, {
       baseURL: '/',
-      timeout: 120_000,
+      timeout: 15_000,
     })
+    vi.useRealTimers()
+  })
+
+  it('surfaces the background task error instead of blaming authorization generically', async () => {
+    vi.useFakeTimers()
+    axiosPost.mockResolvedValueOnce({ data: { job_id: 'job-2', status: 'queued' } })
+    axiosGet.mockResolvedValueOnce({
+      data: { job_id: 'job-2', status: 'failed', error: '飞书表格读取超时' },
+    })
+
+    const result = syncFeishuNow()
+    const rejection = expect(result).rejects.toThrow('飞书表格读取超时')
+    await vi.runAllTimersAsync()
+
+    await rejection
+    vi.useRealTimers()
+  })
+
+  it('retries a transient polling disconnect while the background sync continues', async () => {
+    vi.useFakeTimers()
+    axiosPost.mockResolvedValueOnce({ data: { job_id: 'job-3', status: 'queued' } })
+    axiosGet
+      .mockRejectedValueOnce(new Error('connection reset'))
+      .mockResolvedValueOnce({ data: { job_id: 'job-3', status: 'completed' } })
+
+    const result = syncFeishuNow()
+    await vi.runAllTimersAsync()
+
+    await expect(result).resolves.toMatchObject({ job_id: 'job-3', status: 'completed' })
+    expect(axiosGet).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
   })
 })

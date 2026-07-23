@@ -20,9 +20,10 @@ from app.auth.session import SessionCodec
 from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.session import get_db
-from app.integrations.feishu.oauth_store import FeishuOAuthStore
+from app.integrations.feishu.oauth_store import FeishuOAuthStore, FeishuReauthorizationRequired
 from app.main import app
 from app.models.entities import PermissionAuditLog, Role, Room, SystemSetting, User, UserRole
+from app.services.manual_sync_service import manual_sync_registry
 
 
 def test_password_hash_is_salted_and_verifiable() -> None:
@@ -220,6 +221,75 @@ def test_session_duration_is_configurable_and_bounded() -> None:
         Settings(app_env="test", session_max_age_days=0)
     with pytest.raises(ValueError):
         Settings(app_env="test", session_max_age_days=366)
+
+
+def test_manual_feishu_sync_returns_immediately_and_exposes_job_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def completed_sync(_role: str) -> dict[str, object]:
+        return {
+            "status": "completed",
+            "auth_mode": "user_access_token",
+            "sources": [{"name": "room-a"}],
+            "hourly_facts": {"created": 2},
+        }
+
+    access = AccessScope(
+        user_id=uuid4(),
+        role="developer",
+        room_ids=None,
+        can_export=True,
+        permission_codes=None,
+    )
+    monkeypatch.setattr("app.services.manual_sync_service.sync_configured_sources", completed_sync)
+    app.dependency_overrides[get_access_scope] = lambda: access
+    manual_sync_registry.reset_for_testing()
+    client = TestClient(app)
+    try:
+        accepted = client.post("/auth/feishu/sync")
+        job_id = accepted.json()["job_id"]
+        result = client.get(f"/auth/feishu/sync/{job_id}")
+    finally:
+        manual_sync_registry.reset_for_testing()
+        app.dependency_overrides.clear()
+
+    assert accepted.status_code == 202
+    assert accepted.json()["status"] == "queued"
+    assert accepted.json()["accepted"] is True
+    assert result.status_code == 200
+    assert result.json()["status"] == "completed"
+    assert result.json()["result"]["sources_synced"] == 1
+    assert result.json()["result"]["auth_mode"] == "user_access_token"
+
+
+def test_manual_feishu_sync_reports_reauthorization_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def failed_sync(_role: str) -> dict[str, object]:
+        raise FeishuReauthorizationRequired("expired refresh token")
+
+    access = AccessScope(
+        user_id=uuid4(),
+        role="developer",
+        room_ids=None,
+        can_export=True,
+        permission_codes=None,
+    )
+    monkeypatch.setattr("app.services.manual_sync_service.sync_configured_sources", failed_sync)
+    app.dependency_overrides[get_access_scope] = lambda: access
+    manual_sync_registry.reset_for_testing()
+    client = TestClient(app)
+    try:
+        accepted = client.post("/auth/feishu/sync")
+        result = client.get(f"/auth/feishu/sync/{accepted.json()['job_id']}")
+    finally:
+        manual_sync_registry.reset_for_testing()
+        app.dependency_overrides.clear()
+
+    assert accepted.status_code == 202
+    assert result.status_code == 200
+    assert result.json()["status"] == "failed"
+    assert result.json()["error"] == "飞书授权已失效，请重新授权后再同步"
 
 
 @pytest.mark.asyncio

@@ -54,6 +54,17 @@ export interface FeishuStatus {
   sync_interval_minutes: number
 }
 
+export interface ManualFeishuSyncJob {
+  job_id: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'skipped'
+  requested_at: string
+  started_at: string | null
+  finished_at: string | null
+  error: string | null
+  result: Record<string, unknown> | null
+  accepted?: boolean
+}
+
 export interface AdminSettings {
   live_sync_interval_minutes: number
   schedule_sync_interval_minutes: number
@@ -411,13 +422,42 @@ export async function getFeishuStatus(): Promise<FeishuStatus> {
   return (await client.get<FeishuStatus>('/auth/feishu/status', { baseURL: '/' })).data
 }
 
-export async function syncFeishuNow(): Promise<Record<string, unknown>> {
-  return (
-    await client.post<Record<string, unknown>>('/auth/feishu/sync', null, {
+const wait = (milliseconds: number) =>
+  new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
+
+export async function syncFeishuNow(): Promise<ManualFeishuSyncJob> {
+  const accepted = (
+    await client.post<ManualFeishuSyncJob>('/auth/feishu/sync', null, {
       baseURL: '/',
-      timeout: 120_000,
+      timeout: 15_000,
     })
   ).data
+  if (accepted.status === 'completed') return accepted
+  if (!accepted.job_id) throw new Error('同步任务未返回任务编号，请重试')
+
+  let consecutivePollFailures = 0
+  for (let attempt = 0; attempt < 90; attempt += 1) {
+    await wait(2_000)
+    let job: ManualFeishuSyncJob
+    try {
+      job = (
+        await client.get<ManualFeishuSyncJob>(`/auth/feishu/sync/${accepted.job_id}`, {
+          baseURL: '/',
+          timeout: 15_000,
+        })
+      ).data
+      consecutivePollFailures = 0
+    } catch {
+      consecutivePollFailures += 1
+      if (consecutivePollFailures < 5) continue
+      throw new Error('同步仍在后台运行，但状态查询暂时中断，请稍后刷新页面')
+    }
+    if (job.status === 'completed') return job
+    if (job.status === 'failed' || job.status === 'skipped') {
+      throw new Error(job.error || '同步未完成，请稍后重试')
+    }
+  }
+  throw new Error('同步仍在后台运行，请稍后刷新页面查看最新数据')
 }
 
 export async function getAdminRows(path: string): Promise<Array<Record<string, unknown>>> {

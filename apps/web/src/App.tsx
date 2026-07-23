@@ -239,7 +239,8 @@ export default function App() {
         queryClient.invalidateQueries({ queryKey: ['filter-options'] }),
       ])
     },
-    onError: () => message.error('同步失败，请检查飞书授权状态'),
+    onError: (error) =>
+      message.error(error instanceof Error ? error.message : '同步失败，请稍后重试'),
   })
   const realtimeReady = feishu.data?.realtime_ready === true
   const permissionCodes = currentUser.data?.permissions ?? []

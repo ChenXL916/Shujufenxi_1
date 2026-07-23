@@ -397,3 +397,15 @@
 - [x] 公网验证通过：密码登录 HTTP 200、`/auth/me` HTTP 200、返回角色 `developer`；退出 HTTP 204，退出后 `/auth/me` HTTP 401。
 - [x] 按所有者要求将既有账号登录名从 `chenjiaqi` 改为 `1058177562`；变更前生成 `backups/live_ops_username_20260723T012722Z.sqlite3`，确认新登录名无冲突并写入脱敏权限审计，密码、飞书绑定及 `developer` 权限保持不变。
 - [x] 修复该账号密码哈希与已交付密码不一致的问题；最终正式 HTTPS 验证为登录 HTTP 200、`/auth/me` HTTP 200、角色 `developer`、退出 HTTP 204、退出后 HTTP 401，旧登录名记录数为 0。
+
+## 阶段 27：立即同步网关超时修复
+
+- [x] 通过公网正式账号复现：飞书状态为 `credentials_configured=true`、`user_authorized=true`、`refresh_valid=true`、`realtime_ready=true` 且 `last_error=null`，但旧版同步请求约 30 秒后收到 HTTP 504；同一任务在后端约 37 秒完成，确认根因是公网代理超时而非飞书授权失效。
+- [x] 新增进程内手动同步任务服务。`POST /auth/feishu/sync` 改为 HTTP 202 后台受理，`GET /auth/feishu/sync/{job_id}` 返回排队、运行、完成、失败或跳过状态；任务复用原 `live_actual` 同步管线并限制单任务并发。
+- [x] 前端“立即同步”改为每 2 秒查询后台状态，完成后刷新状态与业务查询；失败时展示实际服务端错误。状态查询的短暂连接中断会重试 4 次，第 5 次连续失败才告知用户任务仍可能在后台运行。
+- [x] 后端定向测试 `test_auth_permissions.py` 13 项通过；前端 `client.test.ts` 9 项通过，覆盖排队到完成、错误透传以及轮询连接短暂中断后的恢复。
+- [x] 修改运行服务前完成 SQLite 在线备份：`backups/live_ops_background_sync_20260723T014831Z.sqlite3`。
+- [x] 公网真实同步通过：受理请求在 0.630 秒返回 HTTP 202，任务 `6f436b51-1134-46ba-bfa4-f22bd22b9b08` 最终为 `completed`，使用 `user_access_token` 同步 4 个来源并生成/更新 2,384 条小时事实；飞书状态写入最新成功时间且 `last_error=null`。
+- [x] 完整 `make.cmd check` 退出 0：Ruff、ESLint、mypy、TypeScript、Prettier、185 个后端测试、17 个前端文件/65 个单元测试、22 个不超过 650 KiB 的生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.85%。
+- [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器部分完成等价 YAML、路径与安全静态校验。
+- [x] 本阶段真实联调仅执行用户要求的表格数据同步，没有触发飞书群预警推送；运行中的正式 API 本地与公网 `/ready` 均保持 HTTP 200。
