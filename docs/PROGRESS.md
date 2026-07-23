@@ -519,4 +519,5 @@
 - [x] 生成三张同尺寸实现截图与四图同屏对照，`design-qa.md` 复核未发现 P0/P1/P2/P3 视觉问题，结论为 `passed`。
 - [x] 最终 `make.cmd check` 通过：189 项后端测试、74 项前端单测、7 项 Playwright E2E 全部通过，领域/服务覆盖率 85.90%，23 个生产 JS Chunk 均不超过 650 KiB。
 - [x] `make.cmd verify-production` 通过：7 个服务、33 张表、迁移、强密钥策略、生产无夹具写入和 Docker 构建路径均有效；本机无 Docker CLI，因此容器运行态采用等价静态校验。
-- [ ] 完成 GitHub 推送及线上资源核验。
+- [x] 功能提交 `588ee99` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 已发布入口 `/assets/index-D4ioi0n9.js`、共享详情分包 `/assets/DetailScaffold-BLraFtfH.js`、总览分包 `/assets/OverviewPage-D1N6vjxK.js`、趋势分包 `/assets/TimelinePage-maMzaRgT.js`、预警分包 `/assets/AlertsPage-CWw0Sf9d.js` 和样式 `/assets/index-DY3U0702.css`。
+- [x] 五个线上资源均返回 HTTP 200，并包含三类详情的共享结构、中文业务章节及响应式样式标记；公网 `/ready` 返回 HTTP 200、`ready / feishu`，数据库与 Redis 均为 `ok`。

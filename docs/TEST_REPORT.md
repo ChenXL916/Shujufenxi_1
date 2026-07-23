@@ -366,3 +366,5 @@
 - 最终 `make.cmd check`：退出码 0；Ruff、mypy、ESLint、TypeScript、Prettier 全部通过；后端 189/189、前端 74/74、Playwright 7/7；覆盖率 85.90%；生产构建转换 5567 个模块，23 个 JS Chunk 全部 ≤650 KiB。
 - `make.cmd verify-production`：退出码 0；7 个服务、33 张表、迁移、强密钥策略、生产无夹具写入和 Docker 构建路径验证通过。Docker CLI 不可用，容器运行态未实启，完成的是等价 YAML/路径/安全静态校验。
 - 安全边界：浏览器测试使用 `e2e.db`、开发认证旁路和空飞书凭据；趋势重算只写隔离数据库，未访问正式经营库，未执行真实同步或飞书群推送。
+- 发布复核：功能提交 `588ee99` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 入口 `/assets/index-D4ioi0n9.js`、共享详情分包 `/assets/DetailScaffold-BLraFtfH.js`、三个页面分包和 `/assets/index-DY3U0702.css` 均返回 HTTP 200。
+- 线上内容：共享分包含“详情状态/详情数值”，总览分包含“核心表现/明细数据”，趋势分包含 `LIVE DATA POINT`，预警分包含“经营对比/事实明细”，样式包含详情操作条、洞察网格和宽指标网格；公网 `/ready` 返回 HTTP 200、`status=ready`、`mode=feishu`，数据库与 Redis 均为 `ok`。
