@@ -271,3 +271,4 @@
 - 完整质量门禁：`make.cmd check` 退出 0。185 个后端测试通过，领域与服务覆盖率 85.85%；17 个前端测试文件的 65 个单元测试通过；生产构建生成 22 个 JS Chunk，均不超过 650 KiB；6 个 Chromium E2E 通过。
 - 生产验证：`make.cmd verify-production` 退出 0，验证 7 个服务、33 张表、迁移、生产强密钥、无 fixture 写入和 Docker 构建路径。本机没有 Docker CLI，容器运行态仍为 YAML、路径和安全静态等价验收。
 - 数据与消息边界：部署前备份 `backups/live_ops_background_sync_20260723T014831Z.sqlite3`；真实联调执行了表格读取、清洗和幂等业务同步，但没有触发飞书群预警推送，也没有记录凭据或会话秘密。
+- 发布复核：功能提交 `4705202` 已推送到 `ChenXL916/Shujufenxi_1/main`；Netlify 已从旧入口包切换至 `/assets/index-Bqvtlmk_.js`。线上脚本确认包含后台同步轮询提示且不含旧的统一授权失败提示，公网 `/ready` 返回 `status=ready`、`mode=feishu`，数据库和 Redis 均为 `ok`。

@@ -409,3 +409,4 @@
 - [x] 完整 `make.cmd check` 退出 0：Ruff、ESLint、mypy、TypeScript、Prettier、185 个后端测试、17 个前端文件/65 个单元测试、22 个不超过 650 KiB 的生产 JS Chunk 和 6 个 Chromium E2E 全部通过；领域与服务覆盖率 85.85%。
 - [x] `make.cmd verify-production` 退出 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器部分完成等价 YAML、路径与安全静态校验。
 - [x] 本阶段真实联调仅执行用户要求的表格数据同步，没有触发飞书群预警推送；运行中的正式 API 本地与公网 `/ready` 均保持 HTTP 200。
+- [x] 功能提交 `4705202` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 生产入口已切换到 `/assets/index-Bqvtlmk_.js`。线上包包含后台同步轮询提示且不再包含旧的统一授权失败提示，公网 `/ready` 返回 `ready / feishu`，数据库与 Redis 均为 `ok`。
