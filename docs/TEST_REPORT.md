@@ -408,3 +408,7 @@
 - 结果：退出码 `0`；7 个服务、33 张表、迁移、强密钥策略、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径均有效。
 - Docker 边界：当前机器无 Docker CLI，容器运行态未实启；完成的是 Compose YAML、构建路径和安全策略的等价静态验证。
 - 数据安全：测试使用 `e2e.db`、开发认证旁路和 Mock 飞书机器人；没有访问或改写正式经营数据，没有向真实飞书群发送测试预警。
+- 上线备份：`backups/live_ops_stage37_20260724T032307Z.sqlite3`，73,572,352 字节，`PRAGMA integrity_check=ok`。
+- 正式库只读口径核对：27/27 个主播汇总行满足 `hourly_average_amount == period_overall_amount / Decimal(valid_hours)`；未执行数据库写入、飞书同步或群推送。
+- 发布提交：`d8158a1` 已推送至 `ChenXL916/Shujufenxi_1/main`；生产 API 重启后本机与 Netlify `/ready` 均为 HTTP 200、`ready / feishu`。
+- 线上资产：入口 `/assets/index-NC4OXPFV.js`、主播分析 `/assets/AnalysisPage-Cpn6aB56.js`、时间线 `/assets/TimelinePage-Ct-gFM9I.js`、命中层 `/assets/chartHitTarget-BfBUoLGD.js` 均返回 HTTP 200；内容探针确认“时均成交”、`hourly_average_amount`、升序交互、24px 命中尺寸和 `pointer` 光标已上线。

@@ -547,3 +547,7 @@
 - [x] 完整门禁：`make.cmd check` 退出码 0；Ruff、ESLint、mypy、TypeScript、Prettier 全部通过；后端 `191/191`、前端 `76/76`、Chromium E2E `7/7` 通过，覆盖率 `85.93%`；生产构建转换 5,568 个模块并生成 23 个不超过 650 KiB 的 JS Chunk。
 - [x] 生产验收：`make.cmd verify-production` 退出码 0，7 个服务、33 张表、迁移、生产强密钥、关闭开发旁路、无 fixture 写入和 Docker 构建路径均通过；当前机器没有 Docker CLI，容器部分完成的是 YAML、路径和安全等价静态校验。
 - [x] 安全边界：自动化测试使用隔离数据库、开发认证旁路和 Mock 飞书推送，没有读取或改写正式经营数据，没有发送真实飞书群消息。
+- [x] 上线保护：发布前在线备份正式 SQLite 到 `backups/live_ops_stage37_20260724T032307Z.sqlite3`，大小 73,572,352 字节，`PRAGMA integrity_check=ok`。
+- [x] 发布复核：功能提交 `d8158a1` 已推送至 `ChenXL916/Shujufenxi_1/main`；E 盘生产 API 重启后，本机与 Netlify `/ready` 均为 HTTP 200、`ready / feishu`。
+- [x] 线上资源：Netlify 入口已切换为 `/assets/index-NC4OXPFV.js`，主播分析分包为 `/assets/AnalysisPage-Cpn6aB56.js`，时间线分包为 `/assets/TimelinePage-Ct-gFM9I.js`，命中层分包为 `/assets/chartHitTarget-BfBUoLGD.js`；线上内容检查确认包含“时均成交”、`hourly_average_amount`、升序按钮、24px 命中尺寸和手型指针。
+- [x] 正式库只读核对：27 个主播汇总行均满足 `hourly_average_amount == period_overall_amount / Decimal(valid_hours)`，没有执行写入、同步或推送。
