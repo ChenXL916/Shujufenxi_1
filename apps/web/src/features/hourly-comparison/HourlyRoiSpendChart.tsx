@@ -3,6 +3,7 @@ import type { EChartsType } from 'echarts/core'
 import { ECharts } from '@/components/ECharts'
 import type { HourlyChartType, HourlyComparisonResponse } from '@/types/hourlyComparison'
 import { buildHourlyChartOption } from './hourlyComparisonChart'
+import { clearHourlySeriesFocus, focusHourlySeries } from './hourlyChartInteraction'
 
 export function HourlyRoiSpendChart({
   data,
@@ -41,9 +42,16 @@ export function HourlyRoiSpendChart({
       notMerge
       lazyUpdate
       className="hourly-roi-spend-chart"
+      motion="focus"
       opts={{ renderer: 'canvas' }}
       onChartReady={onChartReady}
       onEvents={{
+        mouseover: (parameters: { seriesName?: string }, chart: EChartsType) => {
+          focusHourlySeries(chart, parameters.seriesName)
+        },
+        globalout: (_parameters: unknown, chart: EChartsType) => {
+          clearHourlySeriesFocus(chart)
+        },
         click: (parameters: { dataIndex?: number }) => {
           if (typeof parameters.dataIndex !== 'number') return
           const hour = data.hours[parameters.dataIndex]

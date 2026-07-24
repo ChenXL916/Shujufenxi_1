@@ -1,7 +1,11 @@
 import type { EChartsCoreOption as EChartsOption } from 'echarts/core'
 import { describe, expect, test } from 'vitest'
 import type { HourlyComparisonResponse, HourlySeriesPoint } from '@/types/hourlyComparison'
-import { buildHourlyChartOption, formatComparisonNarrative } from './hourlyComparisonChart'
+import {
+  buildHourlyChartOption,
+  formatComparisonNarrative,
+  formatHourlyLegendLabel,
+} from './hourlyComparisonChart'
 import { buildAdditionalMetricOption } from './additionalMetricChartOption'
 
 function point(hour: number): HourlySeriesPoint {
@@ -150,6 +154,14 @@ describe('24小时图表 option', () => {
   test('折线模式固定24小时、缺失不连线并显示实虚线与目标线', () => {
     const option = buildHourlyChartOption(payload, 'line', '08-09', false)
     expect(option.legend).toEqual(expect.objectContaining({ type: 'scroll', left: 8, right: 8 }))
+    expect(option.legend).toEqual(
+      expect.objectContaining({
+        icon: 'roundRect',
+        itemWidth: 22,
+        itemHeight: 5,
+        selectedMode: true,
+      }),
+    )
     expect(option.toolbox).toEqual(expect.objectContaining({ top: 34, right: 8 }))
     const slider = (option.dataZoom as Array<Record<string, unknown>>).find(
       (item) => item.type === 'slider',
@@ -175,8 +187,19 @@ describe('24小时图表 option', () => {
       ),
     ).toBe(true)
     const roiCurrent = series.find((item) => item.name === '柏瑞美-散粉 当前ROI')
+    const emphasis = roiCurrent?.emphasis as
+      { focus?: string; lineStyle?: { width?: number } } | undefined
+    expect(emphasis?.focus).toBe('series')
+    expect(emphasis?.lineStyle?.width).toBe(3.2)
     expect(JSON.stringify(roiCurrent?.markLine)).toContain('1.81')
     expect(JSON.stringify(roiCurrent?.markLine)).toContain('08-09')
+    const markPoint = roiCurrent?.markPoint as
+      { data?: Array<{ name?: string; coord?: [string, number]; symbolSize?: number }> } | undefined
+    const selectedMark = markPoint?.data?.find((item) => item.name === '当前选中小时')
+    expect(selectedMark?.coord).toEqual(['08-09', 1.9])
+    expect(selectedMark?.symbolSize).toBe(24)
+    const axisPointer = option.axisPointer as { label?: { backgroundColor?: string } } | undefined
+    expect(axisPointer?.label?.backgroundColor).toBe('#2B2926')
     const media = option.media as Array<{
       query?: { maxWidth?: number }
       option?: { toolbox?: { top?: number } }
@@ -271,4 +294,10 @@ describe('24小时图表 option', () => {
 test('对比文案区分当前占比与较基准增幅', () => {
   expect(formatComparisonNarrative(3, 1.5)).toBe('当前是基准的200.00%，较基准提升100.00%')
   expect(formatComparisonNarrative(3, 0)).toBe('无有效可比基准')
+})
+
+test('图例压缩汇总前缀并明确当前与上周期', () => {
+  expect(formatHourlyLegendLabel('全部直播间 当前ROI')).toBe('当前 · ROI')
+  expect(formatHourlyLegendLabel('全部直播间 上一周期消耗')).toBe('上周期 · 消耗')
+  expect(formatHourlyLegendLabel('柏瑞美-散粉 当前ROI')).toBe('柏瑞美-散粉 · 当前 ROI')
 })

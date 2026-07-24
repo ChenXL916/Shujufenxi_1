@@ -30,17 +30,21 @@ function NumericSortHeader({
   sort: AnalysisSortState
   onSort: (key: string, order: AnalysisSortOrder) => void
 }) {
+  const ascendingActive = sort?.key === columnKey && sort.order === 'ascend'
+  const descendingActive = sort?.key === columnKey && sort.order === 'descend'
   return (
-    <span className="analysis-sort-header">
-      <span>{label}</span>
-      <span className="analysis-sort-controls">
+    <span
+      className={`analysis-sort-header ${ascendingActive || descendingActive ? 'is-sorted' : ''}`}
+    >
+      <span className="analysis-sort-label">{label}</span>
+      <span className="analysis-sort-controls" role="group" aria-label={`${label}排序`}>
         <Button
           type="text"
           size="small"
-          className={sort?.key === columnKey && sort.order === 'ascend' ? 'is-active' : ''}
+          className={ascendingActive ? 'is-active' : ''}
           aria-label={`按${label}升序`}
-          aria-pressed={sort?.key === columnKey && sort.order === 'ascend'}
-          title={`按${label}升序`}
+          aria-pressed={ascendingActive}
+          title={ascendingActive ? `取消${label}升序` : `按${label}升序`}
           icon={<ArrowUpOutlined />}
           onClick={(event) => {
             event.stopPropagation()
@@ -50,10 +54,10 @@ function NumericSortHeader({
         <Button
           type="text"
           size="small"
-          className={sort?.key === columnKey && sort.order === 'descend' ? 'is-active' : ''}
+          className={descendingActive ? 'is-active' : ''}
           aria-label={`按${label}降序`}
-          aria-pressed={sort?.key === columnKey && sort.order === 'descend'}
-          title={`按${label}降序`}
+          aria-pressed={descendingActive}
+          title={descendingActive ? `取消${label}降序` : `按${label}降序`}
           icon={<ArrowDownOutlined />}
           onClick={(event) => {
             event.stopPropagation()
@@ -69,6 +73,10 @@ function sortNumber(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === '') return null
   const numeric = Number(value)
   return Number.isFinite(numeric) ? numeric : null
+}
+
+function metricColumnWidth(label: string): number {
+  return Math.min(260, Math.max(184, label.length * 13 + 82))
 }
 
 export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' | 'pairings' }) {
@@ -120,8 +128,12 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
     [options.data?.metrics, selectedMetricKeys],
   )
   const sortBy = useCallback((key: string, order: AnalysisSortOrder) => {
-    setSort({ key, order })
+    setSort((current) => (current?.key === key && current.order === order ? null : { key, order }))
   }, [])
+  const sortedColumnClass = useCallback(
+    (key: string) => (sort?.key === key ? 'analysis-sorted-column' : undefined),
+    [sort?.key],
+  )
   const sortedAnalysis = useMemo(() => {
     if (!analysis.data || !sort) return analysis.data ?? []
     return [...analysis.data].sort((left, right) => {
@@ -161,7 +173,8 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
         ),
         dataIndex: 'valid_hours',
         align: 'right' as const,
-        width: 132,
+        width: 158,
+        className: sortedColumnClass('valid_hours'),
       },
       {
         title: (
@@ -169,7 +182,8 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
         ),
         dataIndex: 'room_count',
         align: 'right' as const,
-        width: 132,
+        width: 158,
+        className: sortedColumnClass('room_count'),
       },
       ...(dimension === 'anchors'
         ? [
@@ -184,7 +198,8 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
               ),
               dataIndex: 'hourly_average_amount',
               align: 'right' as const,
-              width: 166,
+              width: 184,
+              className: sortedColumnClass('hourly_average_amount'),
               render: (value: string | number | null) => formatMetric(value, 'currency', 2),
             },
           ]
@@ -200,12 +215,29 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
         ),
         dataIndex: metric.key,
         align: 'right' as const,
-        width: 150,
+        width: metricColumnWidth(
+          `${metric.name}${metric.aggregation === 'NONE' ? '（最近时段）' : ''}`,
+        ),
+        className: sortedColumnClass(metric.key),
         render: (value: string | number | null) =>
           formatMetric(value, metric.unit, metric.precision),
       })),
     ],
-    [dimension, selectedMetrics, sort, sortBy, updateFilters],
+    [dimension, selectedMetrics, sort, sortBy, sortedColumnClass, updateFilters],
+  )
+  const summaryScrollWidth = useMemo(
+    () =>
+      180 +
+      158 +
+      158 +
+      (dimension === 'anchors' ? 184 : 0) +
+      selectedMetrics.reduce(
+        (total, metric) =>
+          total +
+          metricColumnWidth(`${metric.name}${metric.aggregation === 'NONE' ? '（最近时段）' : ''}`),
+        0,
+      ),
+    [dimension, selectedMetrics],
   )
   const anchorHourColumns = useMemo(
     () => [
@@ -267,10 +299,9 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
           <Table<AnalysisRow>
             rowKey="key"
             sticky
-            scroll={{
-              x: 444 + (dimension === 'anchors' ? 166 : 0) + selectedMetrics.length * 150,
-              y: 620,
-            }}
+            className="analysis-summary-table"
+            rowClassName={() => (sort ? `analysis-sort-row analysis-sort-row-${sort.order}` : '')}
+            scroll={{ x: summaryScrollWidth, y: 620 }}
             pagination={{ pageSize: 20 }}
             dataSource={sortedAnalysis}
             columns={columns}

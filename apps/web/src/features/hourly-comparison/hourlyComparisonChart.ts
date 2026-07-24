@@ -56,6 +56,15 @@ function percentage(value: NumericValue): string {
   return numeric === null ? '—' : `${numeric.toFixed(2)}%`
 }
 
+export function formatHourlyLegendLabel(name: string): string {
+  const normalized = name.replace(/^全部直播间\s+/, '')
+  const matched = normalized.match(/^(.*?)(?:\s+)?(当前|上一周期)(ROI|消耗)$/)
+  if (!matched) return normalized
+  const [, entity, period, metric] = matched
+  const periodLabel = period === '上一周期' ? '上周期' : '当前'
+  return entity ? `${entity} · ${periodLabel} ${metric}` : `${periodLabel} · ${metric}`
+}
+
 export function formatComparisonNarrative(current: NumericValue, baseline: NumericValue): string {
   const currentNumber = numberOrNull(current)
   const baselineNumber = numberOrNull(baseline)
@@ -81,6 +90,35 @@ function statusPoints(series: HourlyComparisonSeries, metric: 'roi' | 'spend') {
       },
     ]
   })
+}
+
+function selectedPoint(
+  series: HourlyComparisonSeries,
+  metric: 'roi' | 'spend',
+  selectedHour: string | null,
+  color: string,
+) {
+  if (!selectedHour) return []
+  const point = series.points.find((item) => item.hour === selectedHour)
+  const value = numberOrNull(point?.current[metric] ?? null)
+  if (value === null) return []
+  return [
+    {
+      name: '当前选中小时',
+      coord: [selectedHour, value] as [string, number],
+      symbol: 'circle',
+      symbolSize: 24,
+      itemStyle: {
+        color: '#FFFFFF',
+        borderColor: color,
+        borderWidth: 3,
+        shadowBlur: 12,
+        shadowColor: 'rgba(23, 23, 22, 0.18)',
+      },
+      label: { show: false },
+      tooltip: { show: false },
+    },
+  ]
 }
 
 function selectedLine(selectedHour: string | null): Array<Record<string, unknown>> {
@@ -124,6 +162,7 @@ function currentLine(
   showAllLabels: boolean,
 ): LineSeriesOption {
   const metricLabel = metric === 'roi' ? 'ROI' : '消耗'
+  const color = COLORS[index % COLORS.length] ?? chartSemanticColors.current
   return {
     name: `${series.series_name} 当前${metricLabel}`,
     type: 'line',
@@ -133,9 +172,25 @@ function currentLine(
     connectNulls: false,
     smooth: false,
     showSymbol: true,
-    symbolSize: 7,
-    lineStyle: { color: COLORS[index % COLORS.length], width: 2, type: 'solid' },
-    itemStyle: { color: COLORS[index % COLORS.length] },
+    symbolSize: 8,
+    z: 6,
+    lineStyle: { color, width: 2.4, type: 'solid' },
+    itemStyle: { color, borderColor: '#FFFFFF', borderWidth: 1.5 },
+    emphasis: {
+      focus: 'series',
+      scale: true,
+      lineStyle: { width: 3.2, opacity: 1 },
+      itemStyle: {
+        borderColor: '#FFFFFF',
+        borderWidth: 2,
+        shadowBlur: 10,
+        shadowColor: 'rgba(23, 23, 22, 0.22)',
+      },
+    },
+    blur: {
+      lineStyle: { opacity: 0.2 },
+      itemStyle: { opacity: 0.28 },
+    },
     label: {
       show: showAllLabels,
       position: 'top',
@@ -152,7 +207,10 @@ function currentLine(
     },
     markPoint: {
       symbolSize: 38,
-      data: statusPoints(series, metric),
+      data: [
+        ...statusPoints(series, metric),
+        ...selectedPoint(series, metric, selectedHour, color),
+      ],
       label: { color: chartSemanticColors.onStatus, fontSize: 10 },
     },
   }
@@ -164,6 +222,8 @@ function comparisonLine(
   index: number,
 ): LineSeriesOption {
   const metricLabel = metric === 'roi' ? 'ROI' : '消耗'
+  const color =
+    chartComparisonPalette[index % chartComparisonPalette.length] ?? chartSemanticColors.comparison
   return {
     name: `${series.series_name} 上一周期${metricLabel}`,
     type: 'line',
@@ -173,15 +233,32 @@ function comparisonLine(
     connectNulls: false,
     smooth: false,
     showSymbol: false,
+    z: 4,
     lineStyle: {
-      color: chartComparisonPalette[index % chartComparisonPalette.length],
+      color,
       width: 1.8,
       type: 'dashed',
-      opacity: 0.82,
+      opacity: 0.76,
     },
     itemStyle: {
-      color: chartComparisonPalette[index % chartComparisonPalette.length],
-      opacity: 0.82,
+      color,
+      opacity: 0.76,
+    },
+    emphasis: {
+      focus: 'series',
+      lineStyle: { width: 2.8, opacity: 1 },
+      itemStyle: {
+        color,
+        opacity: 1,
+        borderColor: '#FFFFFF',
+        borderWidth: 2,
+        shadowBlur: 8,
+        shadowColor: 'rgba(23, 23, 22, 0.16)',
+      },
+    },
+    blur: {
+      lineStyle: { opacity: 0.18 },
+      itemStyle: { opacity: 0.22 },
     },
   }
 }
@@ -425,7 +502,25 @@ export function buildHourlyChartOption(
       enabled: true,
       description: `24小时ROI与消耗周期对比，当前周期${payload.current_period.start}至${payload.current_period.end}`,
     },
-    legend: { top: 4, left: 8, right: 8, type: 'scroll' },
+    legend: {
+      top: 4,
+      left: 8,
+      right: 8,
+      type: 'scroll',
+      icon: 'roundRect',
+      itemWidth: 22,
+      itemHeight: 5,
+      itemGap: 18,
+      formatter: formatHourlyLegendLabel,
+      selectedMode: true,
+      inactiveColor: '#C4BFB6',
+      textStyle: {
+        color: '#4F4B45',
+        fontSize: 11,
+        fontWeight: 560,
+      },
+      tooltip: { show: true },
+    },
     toolbox: {
       top: 34,
       right: 8,
@@ -440,11 +535,32 @@ export function buildHourlyChartOption(
     },
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'cross' },
+      transitionDuration: 0.12,
+      axisPointer: {
+        type: 'cross',
+        snap: true,
+        lineStyle: { color: 'rgba(196, 71, 32, 0.5)', width: 1 },
+        crossStyle: { color: 'rgba(196, 71, 32, 0.5)', width: 1 },
+        label: {
+          color: '#FFFFFF',
+          backgroundColor: '#2B2926',
+          borderRadius: 6,
+          padding: [4, 7],
+        },
+      },
       confine: true,
       formatter: (parameters: unknown) => tooltip(payload, parameters, activeSeriesKey),
     },
-    axisPointer: { link: [{ xAxisIndex: [0, 1] }] },
+    axisPointer: {
+      link: [{ xAxisIndex: [0, 1] }],
+      lineStyle: { color: 'rgba(196, 71, 32, 0.5)', width: 1 },
+      label: {
+        color: '#FFFFFF',
+        backgroundColor: '#2B2926',
+        borderRadius: 6,
+        padding: [4, 7],
+      },
+    },
     grid: [
       { left: 72, right: 30, top: 68, height: '31%' },
       { left: 72, right: 30, top: '55%', height: '31%' },
@@ -456,7 +572,7 @@ export function buildHourlyChartOption(
         data: hours,
         boundaryGap: chartType !== 'line',
         axisLabel: { interval: 0, rotate: 45, fontSize: 11 },
-        axisPointer: { show: true },
+        axisPointer: { show: true, snap: true },
       },
       {
         type: 'category',
@@ -464,7 +580,7 @@ export function buildHourlyChartOption(
         data: hours,
         boundaryGap: chartType !== 'line',
         axisLabel: { interval: 0, rotate: 45, fontSize: 11 },
-        axisPointer: { show: true },
+        axisPointer: { show: true, snap: true },
       },
     ],
     yAxis: [

@@ -30,6 +30,17 @@ describe('ECharts Motion与尺寸监听', () => {
     )
   })
 
+  test('聚焦型图表使用更舒缓的进入与更新动画', () => {
+    render(<ECharts option={{}} motion="focus" />)
+    expect(renderedOption().animationDuration).toBe(460)
+    expect(renderedOption().animationDurationUpdate).toBe(320)
+    expect(renderedOption().animationEasing).toBe('quarticOut')
+    expect(screen.getByTestId('echarts-option').parentElement).toHaveAttribute(
+      'data-motion',
+      'focus',
+    )
+  })
+
   test('Reduce Motion强制禁用图表动画', () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,

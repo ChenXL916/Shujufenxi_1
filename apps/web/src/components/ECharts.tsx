@@ -44,22 +44,25 @@ echarts.registerTheme(CHART_THEME_NAME, dashboardChartTheme)
 type Props = Omit<EChartsReactProps, 'echarts' | 'option' | 'onChartReady'> & {
   option: EChartsCoreOption
   onChartReady?: (instance: EChartsType) => void
+  motion?: 'default' | 'focus'
 }
 
-export function ECharts({ option, onChartReady, ...props }: Props) {
+export function ECharts({ option, onChartReady, motion = 'default', ...props }: Props) {
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const frameRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<EChartsType | null>(null)
   const resizeFrameRef = useRef<number | null>(null)
+  const enterDuration = motion === 'focus' ? 460 : 280
+  const updateDuration = motion === 'focus' ? 320 : 240
   const mergedOption = useMemo<EChartsCoreOption>(
     () => ({
       ...option,
-      animationDuration: reducedMotion ? 0 : 280,
-      animationDurationUpdate: reducedMotion ? 0 : 240,
-      animationEasing: 'cubicOut',
+      animationDuration: reducedMotion ? 0 : enterDuration,
+      animationDurationUpdate: reducedMotion ? 0 : updateDuration,
+      animationEasing: motion === 'focus' ? 'quarticOut' : 'cubicOut',
       animationEasingUpdate: 'cubicOut',
     }),
-    [option, reducedMotion],
+    [enterDuration, motion, option, reducedMotion, updateDuration],
   )
 
   const scheduleResize = () => {
@@ -98,6 +101,7 @@ export function ECharts({ option, onChartReady, ...props }: Props) {
       className="echarts-resize-frame echarts-accessible-frame"
       data-chart-resize-observer="true"
       data-reduced-motion={String(reducedMotion)}
+      data-motion={motion}
     >
       <ReactEChartsCore
         echarts={echarts}

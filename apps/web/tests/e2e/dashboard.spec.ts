@@ -7,6 +7,9 @@ test('overview and natural-hour timeline are usable', async ({ page, request }) 
   await expect(page.getByRole('heading', { name: '经营总览', level: 3 })).toBeVisible()
   await expect(page.getByText('Excel 实际导出').first()).toBeVisible()
   await expect(page.locator('.kpi-card').first()).toBeVisible()
+  await expect(
+    page.locator('.echarts-accessible-frame:has(.hourly-roi-spend-chart)').first(),
+  ).toHaveAttribute('data-motion', 'focus')
 
   const response = await request.get('/api/v1/charts/timeline', {
     params: { start_date: '2026-07-08', end_date: '2026-07-08', metric_keys: 'period_overall_roi' },
@@ -92,8 +95,15 @@ test('overview and natural-hour timeline are usable', async ({ page, request }) 
   await expect(page.getByRole('columnheader', { name: /时均成交/ })).toBeVisible()
   const hourlyAverageAscending = page.getByRole('button', { name: '按时均成交升序' })
   await expect(hourlyAverageAscending).toBeVisible()
+  await expect(page.getByRole('group', { name: '时均成交排序' })).toBeVisible()
+  const sortButtonBox = await hourlyAverageAscending.boundingBox()
+  expect(sortButtonBox?.width).toBeGreaterThanOrEqual(28)
+  expect(sortButtonBox?.height).toBeGreaterThanOrEqual(28)
   await hourlyAverageAscending.click()
   await expect(hourlyAverageAscending).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('th.analysis-sorted-column')).toBeVisible()
+  await hourlyAverageAscending.click()
+  await expect(hourlyAverageAscending).toHaveAttribute('aria-pressed', 'false')
   await expect(page.getByText('主播时段明细', { exact: true })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '自然小时' })).toBeVisible()
   await expect(page.getByText(/当前筛选范围共 \d+ 条时段数据/)).toBeVisible()

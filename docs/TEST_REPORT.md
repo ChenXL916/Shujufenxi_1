@@ -412,3 +412,33 @@
 - 正式库只读口径核对：27/27 个主播汇总行满足 `hourly_average_amount == period_overall_amount / Decimal(valid_hours)`；未执行数据库写入、飞书同步或群推送。
 - 发布提交：`d8158a1` 已推送至 `ChenXL916/Shujufenxi_1/main`；生产 API 重启后本机与 Netlify `/ready` 均为 HTTP 200、`ready / feishu`。
 - 线上资产：入口 `/assets/index-NC4OXPFV.js`、主播分析 `/assets/AnalysisPage-Cpn6aB56.js`、时间线 `/assets/TimelinePage-Ct-gFM9I.js`、命中层 `/assets/chartHitTarget-BfBUoLGD.js` 均返回 HTTP 200；内容探针确认“时均成交”、`hourly_average_amount`、升序交互、24px 命中尺寸和 `pointer` 光标已上线。
+
+## 2026-07-24 阶段 38：周期曲线与数值排序交互精修
+
+### 定向功能测试
+
+- `ECharts.test.tsx`：默认/聚焦动画时长及 `prefers-reduced-motion` 降级通过。
+- `hourlyComparisonChart.test.ts`：紧凑图例、当前/对比线视觉层级、选中小时圆环、轴指示器与 Tooltip 通过。
+- `HourlyRoiSpendChart.test.tsx`：悬停目标系列触发 `highlight`，移出触发 `downplay`，缺失系列安全忽略。
+- `AnalysisPage.test.tsx`：排序按钮组、激活列表头、升降序行过渡、空值末尾和再次点击取消排序通过。
+- 定向合计：4 个前端测试文件、`15/15 passed`；TypeScript 和 ESLint 通过。
+
+### 完整质量门禁
+
+- 命令：`make.cmd check`
+- 结果：退出码 `0`。
+- 静态检查：Ruff format/check、mypy（64 个源文件）、ESLint、TypeScript、Prettier 全部通过。
+- 后端：`191/191 passed`，领域与服务覆盖率 `85.93%`；10 条既有 Starlette/Alembic 兼容性弃用警告未影响结果。
+- 前端：21 个测试文件、`80/80 passed`；存在 1 条 Ant Design StickyScrollBar 测试环境 `act(...)` 提示，不影响断言、构建或浏览器运行。
+- 构建：Vite 转换 5,569 个模块，生成 23 个 JS Chunk，全部不超过 650 KiB。
+- E2E：Chromium `7/7 passed`；验证图表聚焦动画模式、排序按钮不小于 28 × 28px、激活列和取消排序。
+
+### 视觉、生产与安全验收
+
+- 视觉证据：`artifacts/stage38/chart-source-vs-implementation.png` 与 `artifacts/stage38/sort-source-vs-implementation.png` 已同屏复核；1440 × 900 全页无横向溢出，`design-qa.md` 为 `final result: passed`。
+- 动效降级：浏览器“减少动态效果”场景通过，图表时长归零且表头 CSS 动画关闭。
+- 命令：`make.cmd verify-production`
+- 结果：退出码 `0`；7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径全部有效。
+- Docker 边界：本机无 Docker CLI，未实启容器；完成 Compose YAML、构建路径和安全策略的等价静态校验。
+- 数据与消息边界：自动测试仅使用隔离数据库、开发认证旁路、Mock/空飞书凭据；没有访问或改写正式经营数据，没有发送真实飞书群消息。
+- 发布边界：本阶段没有数据库、后端 API、指标口径、账号权限或同步配置变更，不需要新增正式库备份，也不需要重启 E 盘生产 API。

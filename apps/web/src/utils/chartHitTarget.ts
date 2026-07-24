@@ -38,12 +38,19 @@ export function createLinePointHitTarget({
       borderWidth: 0,
     },
     emphasis: {
+      focus: 'self',
+      scale: true,
       itemStyle: {
         color: 'rgba(255, 255, 255, 0.92)',
         borderColor: color,
         borderWidth: 2,
         shadowBlur: 8,
         shadowColor: 'rgba(15, 23, 42, 0.18)',
+      },
+    },
+    blur: {
+      itemStyle: {
+        opacity: 0.12,
       },
     },
     tooltip: { show: false },

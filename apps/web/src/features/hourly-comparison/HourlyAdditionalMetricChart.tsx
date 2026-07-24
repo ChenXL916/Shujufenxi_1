@@ -32,6 +32,7 @@ export function HourlyAdditionalMetricChart({
       option={option}
       notMerge
       lazyUpdate
+      motion="focus"
       className="hourly-additional-metric-chart"
       opts={{ renderer: 'canvas' }}
       onEvents={{

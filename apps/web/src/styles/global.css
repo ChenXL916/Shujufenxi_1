@@ -253,32 +253,116 @@ a,
 .analysis-sort-header {
   display: inline-flex;
   min-width: 0;
+  min-height: 32px;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 8px;
   white-space: nowrap;
 }
+
+.analysis-sort-label {
+  color: var(--color-text-secondary);
+  font-weight: 620;
+  transition:
+    color var(--motion-fast) var(--motion-ease-standard),
+    font-weight var(--motion-fast) var(--motion-ease-standard);
+}
+
+.analysis-sort-header.is-sorted .analysis-sort-label {
+  color: var(--color-accent-blue-hover);
+  font-weight: 680;
+}
+
 .analysis-sort-controls {
   display: inline-flex;
   flex: 0 0 auto;
-  gap: 1px;
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-surface-tertiary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 72%);
 }
+
 .analysis-sort-controls .ant-btn {
-  width: 24px;
-  min-width: 24px;
-  height: 24px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
   padding: 0;
   color: var(--color-text-muted);
-  border-radius: 6px;
+  border-radius: 7px;
+  transition:
+    color var(--motion-fast) var(--motion-ease-standard),
+    background var(--motion-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-fast) var(--motion-ease-standard),
+    transform var(--motion-fast) var(--motion-ease-emphasized);
 }
+
 .analysis-sort-controls .ant-btn:hover,
-.analysis-sort-controls .ant-btn:focus-visible,
-.analysis-sort-controls .ant-btn.is-active {
+.analysis-sort-controls .ant-btn:focus-visible {
   color: var(--color-accent-blue);
   background: var(--color-info-soft);
+  transform: translateY(-1px);
 }
+
 .analysis-sort-controls .ant-btn.is-active {
-  box-shadow: inset 0 0 0 1px var(--color-accent-blue);
+  color: #fff;
+  background: var(--color-accent-blue);
+  box-shadow:
+    0 2px 6px rgb(69 101 212 / 24%),
+    inset 0 0 0 1px rgb(255 255 255 / 18%);
+}
+
+.analysis-sort-controls .ant-btn.is-active:hover,
+.analysis-sort-controls .ant-btn.is-active:focus-visible {
+  color: #fff;
+  background: var(--color-accent-blue-hover);
+}
+
+.analysis-summary-table .ant-table-thead > tr > th.analysis-sorted-column {
+  background: color-mix(in srgb, var(--color-info-soft) 78%, #fff);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--color-accent-blue) 62%, transparent);
+}
+
+.analysis-summary-table .ant-table-tbody > tr > td.analysis-sorted-column {
+  background: color-mix(in srgb, var(--color-info-soft) 30%, #fff);
+  transition: background var(--motion-standard) var(--motion-ease-standard);
+}
+
+.analysis-summary-table .ant-table-tbody > tr.ant-table-row:hover > td.analysis-sorted-column {
+  background: color-mix(in srgb, var(--color-info-soft) 68%, #fff) !important;
+}
+
+.analysis-sort-row-ascend {
+  animation: analysis-row-sort-ascend var(--motion-duration-normal) var(--motion-ease-enter) both;
+}
+
+.analysis-sort-row-descend {
+  animation: analysis-row-sort-descend var(--motion-duration-normal) var(--motion-ease-enter) both;
+}
+
+@keyframes analysis-row-sort-ascend {
+  from {
+    opacity: 0.72;
+    transform: translateY(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes analysis-row-sort-descend {
+  from {
+    opacity: 0.72;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .quality-panel {
   padding: 6px 0;

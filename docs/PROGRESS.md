@@ -551,3 +551,15 @@
 - [x] 发布复核：功能提交 `d8158a1` 已推送至 `ChenXL916/Shujufenxi_1/main`；E 盘生产 API 重启后，本机与 Netlify `/ready` 均为 HTTP 200、`ready / feishu`。
 - [x] 线上资源：Netlify 入口已切换为 `/assets/index-NC4OXPFV.js`，主播分析分包为 `/assets/AnalysisPage-Cpn6aB56.js`，时间线分包为 `/assets/TimelinePage-Ct-gFM9I.js`，命中层分包为 `/assets/chartHitTarget-BfBUoLGD.js`；线上内容检查确认包含“时均成交”、`hourly_average_amount`、升序按钮、24px 命中尺寸和手型指针。
 - [x] 正式库只读核对：27 个主播汇总行均满足 `hourly_average_amount == period_overall_amount / Decimal(valid_hours)`，没有执行写入、同步或推送。
+
+## 阶段 38：周期曲线与数值排序 UI、动画和交互精修
+
+- [x] 周期曲线图例压缩为“当前/上周期 · ROI/消耗”，当前周期使用更清晰的实线和白芯数据点，对比周期保持较弱的蓝色虚线；悬停聚焦目标系列，移出后恢复。
+- [x] 选中小时新增持续显示的 24px 白芯彩色圆环、阴影和竖向参考线；既有 24px 点击热区与详情联动保持不变。
+- [x] 图表进入/更新动画调整为 460ms/320ms 缓出；系统启用 `prefers-reduced-motion` 时自动禁用动画，不影响可访问性。
+- [x] 主播分析把每列升降序入口组合为紧凑按钮组，单按钮提升到 28 × 28px；当前方向、选中列和行重排都有明确反馈，再次点击同一方向可取消排序并恢复原顺序。
+- [x] 定向验证通过：图表动画、图例、选中态与聚焦交互，主播排序分组、激活、取消和行过渡均有单元测试；TypeScript、ESLint、Prettier 与 React 最佳实践复核通过。
+- [x] 视觉验收完成：源截图、1440 × 900 实现全页和两个重点同屏对照均已复核；`design-qa.md` 为 `final result: passed`，无 P0/P1/P2/P3 遗留。
+- [x] 完整门禁：`make.cmd check` 退出码 0；后端 `191/191`、前端 `80/80`、Chromium E2E `7/7` 通过，覆盖率 `85.93%`；生产构建生成 23 个不超过 650 KiB 的 JS Chunk。
+- [x] 生产验收：`make.cmd verify-production` 退出码 0；7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径均有效；本机无 Docker CLI，容器部分为等价静态校验。
+- [x] 安全边界：本阶段仅修改前端表现和自动化测试，不改数据库、指标口径、账号权限、飞书配置或同步流程；测试使用隔离 `e2e.db` 和空飞书凭据，没有发送真实群消息，因此无需新增正式库备份或重启生产 API。
