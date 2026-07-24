@@ -563,3 +563,4 @@
 - [x] 完整门禁：`make.cmd check` 退出码 0；后端 `191/191`、前端 `80/80`、Chromium E2E `7/7` 通过，覆盖率 `85.93%`；生产构建生成 23 个不超过 650 KiB 的 JS Chunk。
 - [x] 生产验收：`make.cmd verify-production` 退出码 0；7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径均有效；本机无 Docker CLI，容器部分为等价静态校验。
 - [x] 安全边界：本阶段仅修改前端表现和自动化测试，不改数据库、指标口径、账号权限、飞书配置或同步流程；测试使用隔离 `e2e.db` 和空飞书凭据，没有发送真实群消息，因此无需新增正式库备份或重启生产 API。
+- [x] 发布复核：功能提交 `1995ed6` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 已切换到入口 `/assets/index-BerK2UWD.js`、样式 `/assets/index-BJQdOQm1.css`、总览 `/assets/OverviewPage-C5GO_owj.js`、主播分析 `/assets/AnalysisPage-DETts61s.js` 和命中层 `/assets/chartHitTarget-B8XMtb05.js`。线上内容探针确认紧凑图例、取消排序、分组按钮样式和 24px 命中层均已生效；公网 `/ready` 为 HTTP 200、`ready / feishu`，数据库与 Redis 均为 `ok`。

@@ -442,3 +442,4 @@
 - Docker 边界：本机无 Docker CLI，未实启容器；完成 Compose YAML、构建路径和安全策略的等价静态校验。
 - 数据与消息边界：自动测试仅使用隔离数据库、开发认证旁路、Mock/空飞书凭据；没有访问或改写正式经营数据，没有发送真实飞书群消息。
 - 发布边界：本阶段没有数据库、后端 API、指标口径、账号权限或同步配置变更，不需要新增正式库备份，也不需要重启 E 盘生产 API。
+- 发布复核：`1995ed6` 已推送到 `main`；Netlify 入口 `/assets/index-BerK2UWD.js`、样式 `/assets/index-BJQdOQm1.css`、总览 `/assets/OverviewPage-C5GO_owj.js`、主播分析 `/assets/AnalysisPage-DETts61s.js` 和命中层 `/assets/chartHitTarget-B8XMtb05.js` 均返回 HTTP 200。CSS 包包含排序按钮组和激活列样式，页面分包含“当前/上周期”图例与取消排序逻辑；公网 `/ready` 返回 `status=ready`、`mode=feishu`、数据库和 Redis 为 `ok`。
