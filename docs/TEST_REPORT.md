@@ -443,3 +443,35 @@
 - 数据与消息边界：自动测试仅使用隔离数据库、开发认证旁路、Mock/空飞书凭据；没有访问或改写正式经营数据，没有发送真实飞书群消息。
 - 发布边界：本阶段没有数据库、后端 API、指标口径、账号权限或同步配置变更，不需要新增正式库备份，也不需要重启 E 盘生产 API。
 - 发布复核：`1995ed6` 已推送到 `main`；Netlify 入口 `/assets/index-BerK2UWD.js`、样式 `/assets/index-BJQdOQm1.css`、总览 `/assets/OverviewPage-C5GO_owj.js`、主播分析 `/assets/AnalysisPage-DETts61s.js` 和命中层 `/assets/chartHitTarget-B8XMtb05.js` 均返回 HTTP 200。CSS 包包含排序按钮组和激活列样式，页面分包含“当前/上周期”图例与取消排序逻辑；公网 `/ready` 返回 `status=ready`、`mode=feishu`、数据库和 Redis 为 `ok`。
+
+## 2026-07-24 阶段 39：实时同步与自动预警常驻运行
+
+### 验收结论
+
+- 结论：通过。已补齐此前缺失的生产常驻实时循环；Windows 当前用户登录后会自动启动 `LiveOps-Realtime-Sync`，异常退出后每分钟重试，重复启动不会产生第二实例。
+- 生产任务状态：`Running`；计划任务直接托管 `scripts/realtime_sync_service.py`，环境为 `.env.tunnel`，服务日志写入 `logs/realtime-sync-service-*.log`，错误日志当前为 0 字节。
+- 可逆性：`infra/windows/unregister-realtime-sync-task.ps1` 可停止并移除计划任务，同时清理可能残留的同步服务子进程，不会删除数据库、日志、配置或业务代码。
+
+### 真实数据链路
+
+- 实绩源读取：`678 / 681 / 0 / 126` 条；对应 invalid 为 `1 / 1 / 0 / 10`，小时事实为 `2,384` 条。
+- 排班源读取：主播排班 72 条、人员排班 41 条；恢复首轮正常更新 2 条主播排班和 1 条人员排班，计划任务后续轮均为 unchanged。
+- 预警链路：失败重试、旧预警、小时预警和主播趋势汇总均完成评估，发送数均为 0；因为没有满足条件的新事件，未向真实群发送测试消息或无效卡片。
+- 单实例验证：任务运行中再次请求启动，只有一条实时同步服务进程链持有文件锁；服务进程锁和计划任务 `IgnoreNew` 策略同时生效。
+
+### 自动化测试
+
+- 定向测试：`apps/api/tests/test_windows_runtime_scripts.py` 的 3 条用例全部通过，覆盖环境路径、服务进程锁、直接任务托管、登录触发、失败重启、残留进程清理、可逆卸载和凭据不落代码。
+- 全量命令：`make.cmd check`，退出码 0。
+- 静态检查：Ruff format/check、ESLint、mypy（64 个源文件）、TypeScript、Prettier 全部通过。
+- 后端：`194/194 passed`，覆盖率 `85.93%`；仅保留 10 条既有 Starlette/Alembic 兼容性弃用警告。
+- 前端：21 个测试文件、`80/80 passed`；保留 1 条既有 Ant Design StickyScrollBar 测试环境 `act(...)` 提示，不影响断言、构建或运行。
+- E2E：Chromium `7/7 passed`。
+- 构建：Vite 转换 5,569 个模块，生成 23 个 JS Chunk，全部小于 650 KiB。
+
+### 生产验收与边界
+
+- 全量命令：`make.cmd verify-production`，退出码 0。
+- 验证项：7 个服务、33 张表、迁移、生产强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径全部有效。
+- Docker 边界：本机没有 Docker CLI，未实启容器；完成的是 Compose YAML、构建路径和安全策略的等价静态校验。
+- 运行边界：计划任务保证当前 Windows 用户登录后的自动同步和异常重启；公网仍由本机 Cloudflare Quick Tunnel 提供，电脑关机、未登录或临时 URL 变化时不具备 24×7 保证。固定命名隧道/域名或云服务器仍是长期生产化条件。

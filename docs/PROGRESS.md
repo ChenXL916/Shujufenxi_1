@@ -564,3 +564,25 @@
 - [x] 生产验收：`make.cmd verify-production` 退出码 0；7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径均有效；本机无 Docker CLI，容器部分为等价静态校验。
 - [x] 安全边界：本阶段仅修改前端表现和自动化测试，不改数据库、指标口径、账号权限、飞书配置或同步流程；测试使用隔离 `e2e.db` 和空飞书凭据，没有发送真实群消息，因此无需新增正式库备份或重启生产 API。
 - [x] 发布复核：功能提交 `1995ed6` 已推送至 `ChenXL916/Shujufenxi_1/main`；Netlify 已切换到入口 `/assets/index-BerK2UWD.js`、样式 `/assets/index-BJQdOQm1.css`、总览 `/assets/OverviewPage-C5GO_owj.js`、主播分析 `/assets/AnalysisPage-DETts61s.js` 和命中层 `/assets/chartHitTarget-B8XMtb05.js`。线上内容探针确认紧凑图例、取消排序、分组按钮样式和 24px 命中层均已生效；公网 `/ready` 为 HTTP 200、`ready / feishu`，数据库与 Redis 均为 `ok`。
+
+## 2026-07-24 阶段 39：实时同步与自动预警常驻运行
+
+### 运行缺口与修复
+
+- [x] 运行审计确认生产 API、Redis 和 Cloudflare 隧道均在运行，但负责 5 分钟实时实绩同步、30 分钟排班同步、失败重试、旧预警、小时预警和主播趋势汇总的 `scripts/realtime_sync.py` 未常驻；页面能读历史数据，但不会自动拉取后续数据或自动评估新预警。
+- [x] 新增 `scripts/realtime_sync_service.py` 与 `infra/windows/run-realtime-sync.ps1`：固定从 E 盘仓库解析 `.env.tunnel` 和同步脚本，由实际同步服务进程持有跨进程文件锁，并按日期写入标准输出和错误日志。
+- [x] 新增 `infra/windows/register-realtime-sync-task.ps1` 与 `unregister-realtime-sync-task.ps1`：为当前 Windows 用户注册登录自启动任务 `LiveOps-Realtime-Sync`，由计划任务直接托管同步服务，忽略重复启动，失败后每分钟重启、最多重试 99 次；注销时同时清理可能残留的服务子进程。
+- [x] 已实际注册并启动计划任务；任务状态为 `Running`。重复启动验证中只有一条服务进程链持有文件锁，没有产生第二个实时循环。
+
+### 真实同步与预警验证
+
+- [x] 常驻任务首轮使用真实 `user_access_token` 读取四张实绩表 `678 / 681 / 0 / 126` 条，两张排班表 `72 / 41` 条，小时事实保持 `2,384` 条；首次恢复轮正常更新 2 条主播排班和 1 条人员排班，后续计划任务轮全部为 unchanged。
+- [x] 四张实绩表的 `records_invalid` 分别为 `1 / 1 / 0 / 10`，未被误报为“全部有效”；计划任务标准错误日志为 0 字节。
+- [x] 当前没有满足发送条件的新事件：失败重试、旧预警、小时预警和趋势汇总本轮发送数均为 0，因此没有向真实飞书群发送测试或空预警消息。
+
+### 自动化与生产门禁
+
+- [x] 新增 3 条 Windows 运行脚本测试，覆盖本地环境文件、服务进程锁、直接任务托管、登录触发、失败重启、忽略重复实例、残留进程清理、可逆卸载和凭据不落代码。
+- [x] `make.cmd check` 退出码 0：Ruff、ESLint、mypy（64 个源文件）、TypeScript、Prettier 全部通过；后端 `194/194 passed`、覆盖率 `85.93%`，前端 21 个文件 `80/80 passed`，Chromium E2E `7/7 passed`，生产构建转换 5,569 个模块且 23 个 JS Chunk 全部小于 650 KiB。
+- [x] `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径全部有效。本机仍无 Docker CLI，因此容器部分完成的是 Compose YAML、路径和安全策略静态验收。
+- [x] 运维边界：当前计划任务解决了“Windows 登录后自动同步并在异常退出后重启”，但公网 API 仍依赖本机 Cloudflare Quick Tunnel；电脑关机、用户未登录或临时隧道地址变化时，不能承诺 24×7 公网可用，彻底消除此边界需要固定命名隧道/域名或云服务器。

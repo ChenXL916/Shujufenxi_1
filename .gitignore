@@ -37,6 +37,7 @@ test-results/
 *.sqlite3-*
 *.log
 *.har
+logs/
 artifacts/
 exports/
 backups/

@@ -4,6 +4,25 @@
 
 Compose 固定包含 7 个服务：PostgreSQL、Redis、API、Celery Worker、Celery Beat、Web、反向代理。只有反向代理暴露 `8080`；数据库和 Redis 不对公网开放。
 
+## Windows 本机实时循环
+
+当前 Windows 试运行环境没有常驻 Celery Worker/Beat 时，可用仓库中的计划任务脚本保证登录后继续执行正式飞书同步和预警评估：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\infra\windows\register-realtime-sync-task.ps1
+Start-ScheduledTask -TaskName LiveOps-Realtime-Sync
+```
+
+任务直接托管 `scripts/realtime_sync_service.py`，由服务进程从本机忽略提交的 `.env.tunnel` 读取正式配置；异常退出后每分钟重试，并通过任务单实例设置和服务进程文件锁防止重复循环。运行日志写入忽略提交的 `logs\realtime-sync-service-*.log`。
+
+需要撤销时：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\infra\windows\unregister-realtime-sync-task.ps1
+```
+
+该任务只保证当前 Windows 用户登录且电脑开机期间的后台循环，不会把 Cloudflare Quick Tunnel 变成固定入口。无人值守 24×7 公网运行仍应使用命名隧道或云服务器，并迁移到 Compose 的 Celery Worker/Beat。
+
 ## 生产准备
 
 1. 复制 `.env.example` 为 `.env`，设置强随机数据库密码、JWT 密钥和字段加密密钥。
