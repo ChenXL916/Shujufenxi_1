@@ -164,6 +164,16 @@ describe('24小时图表 option', () => {
     const lines = series.filter((item) => item.type === 'line')
     expect(lines.every((item) => item.connectNulls === false)).toBe(true)
     expect(lines.some((item) => (item.lineStyle as { type?: string }).type === 'dashed')).toBe(true)
+    const hitTargets = series.filter((item) => String(item.id).startsWith('hourly-hit-'))
+    expect(hitTargets).toHaveLength(4)
+    expect(
+      hitTargets.every(
+        (item) =>
+          item.symbolSize === 24 &&
+          item.cursor === 'pointer' &&
+          (item.tooltip as { show?: boolean }).show === false,
+      ),
+    ).toBe(true)
     const roiCurrent = series.find((item) => item.name === '柏瑞美-散粉 当前ROI')
     expect(JSON.stringify(roiCurrent?.markLine)).toContain('1.81')
     expect(JSON.stringify(roiCurrent?.markLine)).toContain('08-09')
@@ -247,6 +257,11 @@ describe('24小时图表 option', () => {
     expect((current?.data as Array<number | null>)[8]).toBe(12_345)
     expect((baseline?.data as Array<number | null>)[8]).toBe(10_000)
     expect(current?.connectNulls).toBe(false)
+    const hitTargets = series.filter((item) => String(item.id).startsWith('additional-hit-'))
+    expect(hitTargets).toHaveLength(2)
+    expect(hitTargets.every((item) => item.symbolSize === 24 && item.cursor === 'pointer')).toBe(
+      true,
+    )
     expect(option.media).toEqual(
       expect.arrayContaining([expect.objectContaining({ query: { maxWidth: 480 } })]),
     )

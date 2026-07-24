@@ -520,6 +520,8 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
     assert member_filtered_point_timeline.json()["groups"] == []
     assert anchors.status_code == pivot.status_code == comparison.status_code == 200
     assert anchors.json()[0]["name"] == "Q-李昕"
+    assert anchors.json()[0]["valid_hours"] == 1
+    assert Decimal(str(anchors.json()[0]["hourly_average_amount"])) == Decimal("300")
     assert Decimal(str(anchors.json()[0]["period_buyers"])) == Decimal("8")
     assert Decimal(str(anchors.json()[0]["period_impression_view_rate"])) == Decimal("0.25")
     assert "period_spend" not in anchors.json()[0]
@@ -532,6 +534,7 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
     assert "period_spend" not in default_anchor_hour["metrics"]
     assert buyer_only_anchors.status_code == 200
     assert Decimal(str(buyer_only_anchors.json()[0]["period_buyers"])) == Decimal("8")
+    assert Decimal(str(buyer_only_anchors.json()[0]["hourly_average_amount"])) == Decimal("300")
     assert "period_overall_amount" not in buyer_only_anchors.json()[0]
     assert buyer_only_anchor_hours.status_code == 200
     assert buyer_only_anchor_hours.json()["total"] == 1

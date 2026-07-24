@@ -8,6 +8,7 @@ import type {
   NumericValue,
 } from '@/types/hourlyComparison'
 import { chartComparisonPalette, chartPalette, chartSemanticColors } from '@/theme/chartTheme'
+import { createLinePointHitTarget } from '@/utils/chartHitTarget'
 
 type MetricSeries = BarSeriesOption | CandlestickSeriesOption | LineSeriesOption
 
@@ -106,6 +107,16 @@ export function buildAdditionalMetricOption(
         : {}),
     }
     series.push(current)
+    if (chartType === 'line') {
+      series.push(
+        createLinePointHitTarget({
+          id: `additional-hit-${index}-current-${metric.key}`,
+          name: `${item.series_name} 当前${metric.name}`,
+          data: currentValues,
+          color: color ?? COLORS[0] ?? '#1677ff',
+        }),
+      )
+    }
     if (data.comparison_period) {
       series.push({
         name: `${item.series_name} 上一周期${metric.name}`,
@@ -127,6 +138,18 @@ export function buildAdditionalMetricOption(
             }
           : {}),
       })
+      if (chartType === 'line') {
+        const comparisonColor =
+          chartComparisonPalette[index % chartComparisonPalette.length] ?? COLORS[0] ?? '#1677ff'
+        series.push(
+          createLinePointHitTarget({
+            id: `additional-hit-${index}-comparison-${metric.key}`,
+            name: `${item.series_name} 上一周期${metric.name}`,
+            data: baselineValues,
+            color: comparisonColor,
+          }),
+        )
+      }
     }
   })
 

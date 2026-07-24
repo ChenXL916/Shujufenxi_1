@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons'
 import { Button, Card, Space, Table } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { getAnalysis, getAnchorHourDetails, getFilterOptions } from '@/api/client'
@@ -15,10 +16,66 @@ const copy = {
   pairings: ['主播 × 场控搭配', '用于寻找稳定搭配与异常时段，所有 ROI 按合计分子/消耗重算。'],
 } as const
 
+type AnalysisSortOrder = 'ascend' | 'descend'
+type AnalysisSortState = { key: string; order: AnalysisSortOrder } | null
+
+function NumericSortHeader({
+  label,
+  columnKey,
+  sort,
+  onSort,
+}: {
+  label: string
+  columnKey: string
+  sort: AnalysisSortState
+  onSort: (key: string, order: AnalysisSortOrder) => void
+}) {
+  return (
+    <span className="analysis-sort-header">
+      <span>{label}</span>
+      <span className="analysis-sort-controls">
+        <Button
+          type="text"
+          size="small"
+          className={sort?.key === columnKey && sort.order === 'ascend' ? 'is-active' : ''}
+          aria-label={`按${label}升序`}
+          aria-pressed={sort?.key === columnKey && sort.order === 'ascend'}
+          title={`按${label}升序`}
+          icon={<ArrowUpOutlined />}
+          onClick={(event) => {
+            event.stopPropagation()
+            onSort(columnKey, 'ascend')
+          }}
+        />
+        <Button
+          type="text"
+          size="small"
+          className={sort?.key === columnKey && sort.order === 'descend' ? 'is-active' : ''}
+          aria-label={`按${label}降序`}
+          aria-pressed={sort?.key === columnKey && sort.order === 'descend'}
+          title={`按${label}降序`}
+          icon={<ArrowDownOutlined />}
+          onClick={(event) => {
+            event.stopPropagation()
+            onSort(columnKey, 'descend')
+          }}
+        />
+      </span>
+    </span>
+  )
+}
+
+function sortNumber(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
 export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' | 'pairings' }) {
   const { filters, update, reset } = useDashboardFilters()
   const [detailPage, setDetailPage] = useState(1)
   const [detailPageSize, setDetailPageSize] = useState(50)
+  const [sort, setSort] = useState<AnalysisSortState>(null)
   const updateFilters = useCallback(
     (patch: Partial<DashboardFilters>) => {
       setDetailPage(1)
@@ -62,6 +119,20 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
         .filter((metric) => metric !== undefined),
     [options.data?.metrics, selectedMetricKeys],
   )
+  const sortBy = useCallback((key: string, order: AnalysisSortOrder) => {
+    setSort({ key, order })
+  }, [])
+  const sortedAnalysis = useMemo(() => {
+    if (!analysis.data || !sort) return analysis.data ?? []
+    return [...analysis.data].sort((left, right) => {
+      const leftValue = sortNumber(left[sort.key])
+      const rightValue = sortNumber(right[sort.key])
+      if (leftValue === null && rightValue === null) return 0
+      if (leftValue === null) return 1
+      if (rightValue === null) return -1
+      return sort.order === 'ascend' ? leftValue - rightValue : rightValue - leftValue
+    })
+  }, [analysis.data, sort])
   const columns = useMemo(
     () => [
       {
@@ -84,10 +155,49 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
             value
           ),
       },
-      { title: '有效小时', dataIndex: 'valid_hours', align: 'right' as const, width: 100 },
-      { title: '直播间数', dataIndex: 'room_count', align: 'right' as const, width: 100 },
+      {
+        title: (
+          <NumericSortHeader label="有效小时" columnKey="valid_hours" sort={sort} onSort={sortBy} />
+        ),
+        dataIndex: 'valid_hours',
+        align: 'right' as const,
+        width: 132,
+      },
+      {
+        title: (
+          <NumericSortHeader label="直播间数" columnKey="room_count" sort={sort} onSort={sortBy} />
+        ),
+        dataIndex: 'room_count',
+        align: 'right' as const,
+        width: 132,
+      },
+      ...(dimension === 'anchors'
+        ? [
+            {
+              title: (
+                <NumericSortHeader
+                  label="时均成交"
+                  columnKey="hourly_average_amount"
+                  sort={sort}
+                  onSort={sortBy}
+                />
+              ),
+              dataIndex: 'hourly_average_amount',
+              align: 'right' as const,
+              width: 166,
+              render: (value: string | number | null) => formatMetric(value, 'currency', 2),
+            },
+          ]
+        : []),
       ...selectedMetrics.map((metric) => ({
-        title: `${metric.name}${metric.aggregation === 'NONE' ? '（最近时段）' : ''}`,
+        title: (
+          <NumericSortHeader
+            label={`${metric.name}${metric.aggregation === 'NONE' ? '（最近时段）' : ''}`}
+            columnKey={metric.key}
+            sort={sort}
+            onSort={sortBy}
+          />
+        ),
         dataIndex: metric.key,
         align: 'right' as const,
         width: 150,
@@ -95,7 +205,7 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
           formatMetric(value, metric.unit, metric.precision),
       })),
     ],
-    [dimension, selectedMetrics, updateFilters],
+    [dimension, selectedMetrics, sort, sortBy, updateFilters],
   )
   const anchorHourColumns = useMemo(
     () => [
@@ -157,9 +267,12 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
           <Table<AnalysisRow>
             rowKey="key"
             sticky
-            scroll={{ x: 380 + selectedMetrics.length * 150, y: 620 }}
+            scroll={{
+              x: 444 + (dimension === 'anchors' ? 166 : 0) + selectedMetrics.length * 150,
+              y: 620,
+            }}
             pagination={{ pageSize: 20 }}
-            dataSource={analysis.data}
+            dataSource={sortedAnalysis}
             columns={columns}
           />
         )}

@@ -2,6 +2,7 @@ import type { EChartsCoreOption as EChartsOption } from 'echarts/core'
 import { ECharts } from '@/components/ECharts'
 import { chartPalette, chartSemanticColors } from '@/theme/chartTheme'
 import type { TimelineGroup, TimelineSeries } from '@/types/dashboard'
+import { createLinePointHitTarget } from '@/utils/chartHitTarget'
 
 const colors = chartPalette
 
@@ -14,6 +15,28 @@ export function MetricChart({
   series: TimelineSeries[]
   onPointClick: (index: number, series: TimelineSeries) => void
 }) {
+  const values = series.map((item) =>
+    item.data.map((value) => (value === null ? null : Number(value))),
+  )
+  const visibleSeries = series.map((item, index) => ({
+    name: item.name,
+    type: 'line' as const,
+    smooth: true,
+    showSymbol: item.data.length < 60,
+    symbolSize: 7,
+    lineStyle: { width: 2 },
+    itemStyle: { color: colors[index % colors.length] },
+    data: values[index],
+    connectNulls: false,
+  }))
+  const hitTargets = series.map((item, index) =>
+    createLinePointHitTarget({
+      id: `timeline-hit-${index}`,
+      name: item.name,
+      data: values[index] ?? [],
+      color: colors[index % colors.length] ?? colors[0] ?? '#1677ff',
+    }),
+  )
   const option: EChartsOption = {
     color: colors,
     animationDuration: 350,
@@ -43,17 +66,7 @@ export function MetricChart({
       scale: true,
       splitLine: { lineStyle: { color: chartSemanticColors.grid, type: 'dashed' } },
     },
-    series: series.map((item, index) => ({
-      name: item.name,
-      type: 'line',
-      smooth: true,
-      showSymbol: item.data.length < 60,
-      symbolSize: 7,
-      lineStyle: { width: 2 },
-      itemStyle: { color: colors[index % colors.length] },
-      data: item.data.map((value) => (value === null ? null : Number(value))),
-      connectNulls: false,
-    })),
+    series: [...visibleSeries, ...hitTargets],
   }
   return (
     <ECharts
@@ -61,8 +74,10 @@ export function MetricChart({
       notMerge
       className="metric-chart"
       onEvents={{
-        click: (params: { dataIndex: number; seriesIndex: number }) => {
-          const clickedSeries = series[params.seriesIndex]
+        click: (params: { dataIndex: number; seriesId?: string; seriesIndex: number }) => {
+          const hitIndex = params.seriesId?.match(/^timeline-hit-(\d+)$/)?.[1]
+          const sourceIndex = hitIndex === undefined ? params.seriesIndex : Number(hitIndex)
+          const clickedSeries = series[sourceIndex]
           if (clickedSeries) onPointClick(params.dataIndex, clickedSeries)
         },
       }}

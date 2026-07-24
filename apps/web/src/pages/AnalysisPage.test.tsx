@@ -97,9 +97,20 @@ vi.mock('@/api/client', () => ({
       name: 'Q-李昕',
       valid_hours: 1,
       room_count: 1,
+      hourly_average_amount: 300,
       period_overall_amount: 300,
       period_buyers: 8,
       period_impression_view_rate: 0.25,
+    },
+    {
+      key: 'Q-王敏',
+      name: 'Q-王敏',
+      valid_hours: 2,
+      room_count: 1,
+      hourly_average_amount: 200,
+      period_overall_amount: 400,
+      period_buyers: 12,
+      period_impression_view_rate: 0.2,
     },
   ]),
   getAnchorHourDetails: vi.fn().mockResolvedValue({
@@ -149,10 +160,12 @@ test('主播分析未指定指标时只默认勾选配置中的分析指标', as
   )
 
   expect(await screen.findByText('已选 3 个指标')).toBeInTheDocument()
-  expect(await screen.findAllByRole('columnheader', { name: '时段整体成交金额' })).toHaveLength(2)
-  expect(await screen.findAllByRole('columnheader', { name: '时段成交人数' })).toHaveLength(2)
+  expect(await screen.findAllByRole('columnheader', { name: /时段整体成交金额/ })).toHaveLength(2)
+  expect(await screen.findAllByRole('columnheader', { name: /时段成交人数/ })).toHaveLength(2)
+  expect(screen.getByRole('columnheader', { name: /时均成交/ })).toBeInTheDocument()
+  expect(screen.getAllByText('¥300.00').length).toBeGreaterThan(0)
   expect(
-    screen.getByRole('columnheader', { name: '时段曝光-观看率(人数）（最近时段）' }),
+    screen.getByRole('columnheader', { name: /时段曝光-观看率\(人数）（最近时段）/ }),
   ).toBeInTheDocument()
   expect(screen.queryByRole('columnheader', { name: '时段消耗' })).not.toBeInTheDocument()
   await waitFor(() =>
@@ -186,8 +199,9 @@ test('主播分析按 URL 指标筛选动态显示数据列并传给 API', async
     </QueryClientProvider>,
   )
 
-  expect(await screen.findAllByRole('columnheader', { name: '时段成交人数' })).toHaveLength(2)
+  expect(await screen.findAllByRole('columnheader', { name: /时段成交人数/ })).toHaveLength(2)
   expect(screen.queryByRole('columnheader', { name: '时段整体成交金额' })).not.toBeInTheDocument()
+  expect(screen.getByRole('columnheader', { name: /时均成交/ })).toBeInTheDocument()
   expect(screen.getByText('已选 1 个指标')).toBeInTheDocument()
   expect(screen.getByRole('combobox', { name: '指标' })).toBeInTheDocument()
   expect(screen.getByLabelText('快捷周期')).toBeInTheDocument()
@@ -219,4 +233,35 @@ test('主播分析按 URL 指标筛选动态显示数据列并传给 API', async
       50,
     ),
   )
+})
+
+test('主播汇总每个数值列常显升降序快捷键并可按时均成交排序', async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/anchors?start=2026-07-08&end=2026-07-08']}>
+        <AnalysisPage dimension="anchors" />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+
+  expect(await screen.findByRole('button', { name: '按时均成交升序' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '按时均成交降序' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '按有效小时升序' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '按直播间数降序' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '按时段成交人数升序' })).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: '按时均成交升序' }))
+  expect(
+    screen
+      .getAllByRole('button', { name: /查看.+的全部时段数据/ })
+      .map((button) => button.textContent),
+  ).toEqual(['Q-王敏', 'Q-李昕'])
+
+  fireEvent.click(screen.getByRole('button', { name: '按时均成交降序' }))
+  expect(
+    screen
+      .getAllByRole('button', { name: /查看.+的全部时段数据/ })
+      .map((button) => button.textContent),
+  ).toEqual(['Q-李昕', 'Q-王敏'])
 })

@@ -50,9 +50,27 @@ class AnalysisService:
         rows: list[dict[str, Any]] = []
         for label, group in grouped.items():
             observations = self.dashboard._observations(group)
-            row: dict[str, Any] = {"key": label, "name": label, "valid_hours": len(group)}
+            valid_hours = len(group)
+            overall_amount = aggregate_metric(
+                "period_overall_amount",
+                observations,
+                self.catalog,
+            )
+            row: dict[str, Any] = {
+                "key": label,
+                "name": label,
+                "valid_hours": valid_hours,
+                "hourly_average_amount": self._hourly_average_amount(
+                    overall_amount,
+                    valid_hours,
+                ),
+            }
             for metric in selected_metrics:
-                row[metric] = self._analysis_metric_value(metric, observations)
+                row[metric] = (
+                    overall_amount
+                    if metric == "period_overall_amount"
+                    else self._analysis_metric_value(metric, observations)
+                )
             rooms = {str(fact.room_id) for fact in group}
             row["room_count"] = len(rooms)
             rows.append(row)
@@ -181,6 +199,15 @@ class AnalysisService:
         if metric_keys:
             return row.get(metric_keys[0]) or Decimal(0)
         return Decimal(row["valid_hours"])
+
+    @staticmethod
+    def _hourly_average_amount(
+        overall_amount: Decimal | None,
+        valid_hours: int,
+    ) -> Decimal | None:
+        if overall_amount is None or valid_hours <= 0:
+            return None
+        return overall_amount / Decimal(valid_hours)
 
     def comparisons(
         self,

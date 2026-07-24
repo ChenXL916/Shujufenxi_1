@@ -126,6 +126,7 @@ export interface AnalysisRow {
   name: string
   valid_hours: number
   room_count: number
+  hourly_average_amount: string | number | null
   period_overall_amount: string | number | null
   period_spend: string | number | null
   period_overall_roi: string | number | null

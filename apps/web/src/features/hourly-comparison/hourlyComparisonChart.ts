@@ -13,6 +13,7 @@ import {
   chartSemanticColors,
   chartStatusColors,
 } from '@/theme/chartTheme'
+import { createLinePointHitTarget } from '@/utils/chartHitTarget'
 
 type ChartSeries = BarSeriesOption | CandlestickSeriesOption | LineSeriesOption
 
@@ -183,6 +184,30 @@ function comparisonLine(
       opacity: 0.82,
     },
   }
+}
+
+function lineHitTargets(
+  series: HourlyComparisonSeries,
+  index: number,
+  comparison: boolean,
+): LineSeriesOption[] {
+  const period = comparison ? 'comparison' : 'current'
+  const color = comparison
+    ? chartComparisonPalette[index % chartComparisonPalette.length]
+    : COLORS[index % COLORS.length]
+  return (['roi', 'spend'] as const).map((metric) => {
+    const metricLabel = metric === 'roi' ? 'ROI' : '消耗'
+    return createLinePointHitTarget({
+      id: `hourly-hit-${index}-${period}-${metric}`,
+      name: `${series.series_name} ${comparison ? '上一周期' : '当前'}${metricLabel}`,
+      data: series.points.map((point) =>
+        numberOrNull(comparison ? (point.comparison?.[metric] ?? null) : point.current[metric]),
+      ),
+      color: color ?? COLORS[0] ?? '#1677ff',
+      xAxisIndex: metric === 'roi' ? 0 : 1,
+      yAxisIndex: metric === 'roi' ? 0 : 1,
+    })
+  })
 }
 
 function rangeBand(
@@ -385,8 +410,10 @@ export function buildHourlyChartOption(
         }
         series.push(currentLine(item, 'roi', index, selectedHour, showAllLabels))
         series.push(currentLine(item, 'spend', index, selectedHour, showAllLabels))
+        series.push(...lineHitTargets(item, index, false))
         if (payload.comparison_period) {
           series.push(comparisonLine(item, 'roi', index), comparisonLine(item, 'spend', index))
+          series.push(...lineHitTargets(item, index, true))
         }
       }
     })
