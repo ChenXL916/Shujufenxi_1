@@ -475,3 +475,34 @@
 - 验证项：7 个服务、33 张表、迁移、生产强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径全部有效。
 - Docker 边界：本机没有 Docker CLI，未实启容器；完成的是 Compose YAML、构建路径和安全策略的等价静态校验。
 - 运行边界：计划任务保证当前 Windows 用户登录后的自动同步和异常重启；公网仍由本机 Cloudflare Quick Tunnel 提供，电脑关机、未登录或临时 URL 变化时不具备 24×7 保证。固定命名隧道/域名或云服务器仍是长期生产化条件。
+
+## 2026-07-27 阶段 40：停电后的公网网关自动恢复
+
+### 验收结论
+
+- 结论：通过。停电后缺失的 FastAPI、WSL Docker/Redis 和 Cloudflare 网关已恢复，并由 `LiveOps-Gateway` 在当前 Windows 用户登录后自动启动。
+- 任务状态：`LiveOps-Gateway=Running`、`LiveOps-Realtime-Sync=Running`；任务设置为 `IgnoreNew`、失败一分钟后重启、最多 99 次，服务进程另有文件锁。
+- 当前链路：WSL 保活 → Docker Redis → FastAPI `127.0.0.1:8000` → Cloudflare Quick Tunnel → GitHub 运行 origin → Netlify Edge → 固定网页域名。
+- 可逆性：`infra/windows/unregister-gateway-task.ps1` 会移除任务并清理该项目的服务、Uvicorn 和 8000 端口 Quick Tunnel 子进程，不删除数据库、配置、日志或业务代码。
+
+### 故障复现与修复证据
+
+- 初始状态：本机 8000 无监听，原 Quick Tunnel `/health`、`/ready` 不可用，Netlify `/health` 返回 502。
+- 首次启动发现 Uvicorn `*` 参数被 Windows 展开为仓库文件列表，进程以代码 2 退出；改为 `--forwarded-allow-ips=*` 后 API 成功启动。
+- 第二次启动发现 Redis 由 WSL 内 Docker 容器提供，WSL 空闲停止后 `/ready` 连续三次失败；加入受监控的 WSL 保活进程后 Redis `PING=True`，API 和隧道持续返回 ready。
+- 当前本机 `/ready` 返回 HTTP 200、`mode=feishu`、`database=ok`、`redis=ok`；当前 Quick Tunnel `/health`、`/ready` 均返回 HTTP 200。
+- 运行状态文件通过 GitHub 公网读取返回当前 `*.trycloudflare.com` origin 和更新时间；内容不包含任何密钥、用户或经营数据。
+
+### 自动化测试
+
+- 定向命令：Ruff format/check，以及 `pytest apps/api/tests/test_windows_runtime_scripts.py apps/api/tests/test_deployment_safety.py -q`。
+- 定向结果：`12/12 passed`；覆盖边缘函数路径白名单、HTTPS/域名校验、查询参数和方法转发、SPA 回退顺序、Windows 登录任务、失败重启、WSL 保活、单实例、GitHub 运行地址发布和卸载清理。
+- 完整门禁：`make.cmd check` 退出码 0；Ruff、ESLint、mypy（64 个源文件）、TypeScript、Prettier 全部通过，后端 `197/197`、覆盖率 `85.93%`，前端 `80/80`，生产构建 23 个 JS Chunk 均不超过 650 KiB，Chromium E2E `7/7`。
+- 生产验收：`make.cmd verify-production` 退出码 0，7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径全部有效。
+- Docker 边界：Windows 主机没有 Docker CLI；实际 Redis 容器由 WSL 内现有 Docker 服务托管，本次已做运行态 ready/PING 验证，Compose 生产栈仍完成 YAML、路径和安全静态验收。
+
+### 数据与安全边界
+
+- 未改写正式 SQLite 数据、飞书 token、OAuth 授权、用户密码、角色或直播间权限；未触发真实同步写入或群机器人测试消息。
+- Netlify Edge 只允许四类后端路径和 `*.trycloudflare.com` HTTPS origin，拒绝任意 registry 主机，响应不缓存。
+- Windows 任务使用当前用户登录触发，以复用本机 GitHub 凭据且不保存 Windows 密码；因此登录界面前不会启动，电脑断电期间也无法提供服务。

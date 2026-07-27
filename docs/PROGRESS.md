@@ -586,3 +586,28 @@
 - [x] `make.cmd check` 退出码 0：Ruff、ESLint、mypy（64 个源文件）、TypeScript、Prettier 全部通过；后端 `194/194 passed`、覆盖率 `85.93%`，前端 21 个文件 `80/80 passed`，Chromium E2E `7/7 passed`，生产构建转换 5,569 个模块且 23 个 JS Chunk 全部小于 650 KiB。
 - [x] `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径全部有效。本机仍无 Docker CLI，因此容器部分完成的是 Compose YAML、路径和安全策略静态验收。
 - [x] 运维边界：当前计划任务解决了“Windows 登录后自动同步并在异常退出后重启”，但公网 API 仍依赖本机 Cloudflare Quick Tunnel；电脑关机、用户未登录或临时隧道地址变化时，不能承诺 24×7 公网可用，彻底消除此边界需要固定命名隧道/域名或云服务器。
+
+## 2026-07-27 阶段 40：停电后的公网网关自动恢复
+
+### 故障定位与运行恢复
+
+- [x] 停电恢复审计确认 Netlify 前端仍在线，但本机 8000 端口、FastAPI 和 Cloudflare 隧道均未运行，线上 `/health` 返回 502；既有 `LiveOps-Realtime-Sync` 只负责同步和预警，不负责 API 或公网网关。
+- [x] 新增 `scripts/gateway_service.py` 和 Windows 注册、运行、注销脚本；当前用户登录后自动启动 WSL 保活、正式 FastAPI、Cloudflare Quick Tunnel，并对 API、隧道和 WSL 子进程做持续监控。
+- [x] 实际启动中发现 Redis 位于 WSL 内 Docker 自动重启容器；单次唤醒 WSL 后发行版会停止，导致 `/ready` 间歇返回 503。服务改为持有 `sleep infinity` 轻量 WSL 保活进程，Docker/Redis 随后持续可用。
+- [x] 修复 Windows 对 Uvicorn `--forwarded-allow-ips *` 的通配符展开，改为 `--forwarded-allow-ips=*`；生产安全配置、代理头支持和本机仅监听 127.0.0.1 的边界保持不变。
+
+### 固定网页入口与临时隧道切换
+
+- [x] Quick Tunnel 创建后自动把公开 origin 写入 GitHub `liveops-runtime` 独立运行分支的 `runtime/backend-origin.json`；重复地址不产生新提交，飞书、数据库、JWT、机器人和登录凭据均未进入运行状态文件。
+- [x] 新增 Netlify `backend-proxy` 边缘函数；只代理 `/api/*`、`/auth/*`、`/health`、`/ready`，只接受合法的 HTTPS `*.trycloudflare.com` origin，并保留 Cookie、查询参数、请求方法与同源登录链路。
+- [x] 移除 `main` 中写死的旧 Quick Tunnel origin；SPA 回退仍位于 API/认证边缘路由之后，用户继续使用固定入口 `https://jskzsjfx.netlify.app`。
+
+### 运行与测试结果
+
+- [x] `LiveOps-Gateway` 和 `LiveOps-Realtime-Sync` 均已注册并处于 `Running`；当前只有一条网关服务链，文件锁与 `IgnoreNew` 防止重复实例，异常退出后计划任务一分钟重启。
+- [x] 本机 `/ready`、当前 Quick Tunnel `/health` 与 `/ready` 均返回 HTTP 200；`mode=feishu`、数据库和 Redis 均为 `ok`，公开运行状态文件已更新到当前隧道。
+- [x] 定向测试 `12/12` 通过，覆盖 Netlify 边缘代理路由、origin 安全校验、查询参数转发、Windows 登录触发、失败重启、WSL 保活、单实例、运行地址发布和可逆卸载。
+- [x] 最终 `make.cmd check` 退出码 0：Ruff、ESLint、mypy（64 个源文件）、TypeScript、Prettier 全部通过；后端 `197/197`、覆盖率 `85.93%`，前端 `80/80`，Chromium E2E `7/7`，生产构建 23 个 JS Chunk 全部不超过 650 KiB。
+- [x] `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥、生产无 fixture 写入和 Docker 构建路径均有效；本机无 Windows Docker CLI，容器部分仍为等价静态验收。
+- [x] 安全边界：本阶段未改正式数据库、飞书授权、账号、角色、直播间权限、指标或预警规则，也未发送真实飞书群消息；GitHub 运行分支只存公开临时 origin。
+- [x] 可用性边界：当前方案能在 Windows 用户登录后自动恢复并保持固定 Netlify 入口，但电脑断电和停留在登录界面期间仍不可用；真正 24×7 无人值守需要云服务器或 Cloudflare 自有域名命名隧道。

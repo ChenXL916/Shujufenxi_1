@@ -75,18 +75,20 @@ def test_netlify_builds_the_vite_app_from_the_monorepo() -> None:
         "publish": "dist",
     }
     assert build["environment"]["NODE_VERSION"] == "22"
-    backend_origin = build["environment"].get("NETLIFY_BACKEND_ORIGIN")
-    assert backend_origin is None or backend_origin.startswith("https://")
+    assert "NETLIFY_BACKEND_ORIGIN" not in build["environment"]
+    edge_paths = {
+        item["path"] for item in config["edge_functions"] if item["function"] == "backend-proxy"
+    }
+    assert edge_paths == {"/api/*", "/auth/*", "/health", "/ready"}
     assert "write-netlify-redirects.mjs" in package["scripts"]["build"]
 
 
-def test_netlify_redirects_proxy_backend_before_spa_fallback(tmp_path: Path) -> None:
+def test_netlify_redirects_keep_spa_fallback_after_edge_gateway(tmp_path: Path) -> None:
     node = shutil.which("node")
     assert node is not None
     output = tmp_path / "_redirects"
     env = {
         **os.environ,
-        "NETLIFY_BACKEND_ORIGIN": "https://api.example.com/",
         "NETLIFY_REDIRECTS_OUTPUT": str(output),
     }
 
@@ -100,10 +102,43 @@ def test_netlify_redirects_proxy_backend_before_spa_fallback(tmp_path: Path) -> 
     )
     rules = output.read_text(encoding="utf-8").splitlines()
 
-    assert rules[:4] == [
-        "/api/*  https://api.example.com/api/:splat  200",
-        "/auth/*  https://api.example.com/auth/:splat  200",
-        "/health  https://api.example.com/health  200",
-        "/ready  https://api.example.com/ready  200",
-    ]
+    assert "backend-proxy edge function" in rules[0]
     assert rules[-1] == "/*  /index.html  200"
+
+
+def test_netlify_edge_gateway_uses_validated_runtime_origin(tmp_path: Path) -> None:
+    node = shutil.which("node")
+    assert node is not None
+    proxy = (ROOT / "apps" / "web" / "netlify" / "edge-functions" / "backend-proxy.mjs").as_uri()
+    script = f"""
+import proxy, {{ resetOriginCacheForTests }} from {json.dumps(proxy)};
+resetOriginCacheForTests();
+const calls = [];
+globalThis.fetch = async (input, init = {{}}) => {{
+  const url = String(input);
+  calls.push({{ url, method: init.method ?? 'GET' }});
+  if (url.includes('raw.githubusercontent.com')) {{
+    return Response.json({{ origin: 'https://valid-runtime.trycloudflare.com' }});
+  }}
+  return Response.json(
+    {{ ok: true }},
+    {{ status: 200, headers: {{ 'set-cookie': 'session=test' }} }},
+  );
+}};
+const response = await proxy(new Request('https://jskzsjfx.netlify.app/api/v1/ping?x=1'));
+console.log(JSON.stringify({{ status: response.status, calls }}));
+"""
+    result = subprocess.run(  # noqa: S603 - executable resolved from the trusted test environment
+        [node, "--input-type=module", "--eval", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    payload = json.loads(result.stdout)
+
+    assert payload["status"] == 200
+    assert payload["calls"][1] == {
+        "url": "https://valid-runtime.trycloudflare.com/api/v1/ping?x=1",
+        "method": "GET",
+    }

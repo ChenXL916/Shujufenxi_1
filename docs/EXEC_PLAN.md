@@ -418,3 +418,23 @@
 - 注册并实际启动计划任务，验证任务为 `Running`、子进程存活、首轮输出完成且无 stderr；确认不会生成重复同步进程。
 - 更新 `docs/PROGRESS.md` 与 `docs/TEST_REPORT.md`，运行相关静态检查、自动化测试、`make.cmd check` 和 `make.cmd verify-production`。
 - 本阶段不把 Quick Tunnel 宣称为 24×7 固定入口；电脑关机后的公网恢复仍需要命名隧道或云服务器。
+
+## 阶段 40：停电后的公网网关自动恢复
+
+### 1. 运行链路
+
+- Windows 当前用户登录后自动启动正式 FastAPI，并固定从 E 盘仓库和本机忽略提交的 `.env.tunnel` 读取生产配置。
+- API `/ready` 通过后启动 Cloudflare Quick Tunnel；任一子进程退出或连续健康检查失败时结束服务，由计划任务一分钟后自动重启。
+- 服务使用跨进程文件锁和计划任务单实例设置，避免重复 API、重复隧道或端口冲突；日志只记录运行状态和公开隧道地址，不记录飞书、数据库、JWT 或机器人密钥。
+
+### 2. 临时隧道地址切换
+
+- Quick Tunnel 每次重建后，把新的公开 HTTPS origin 写入 GitHub 独立运行分支的 JSON 状态文件；不修改 `main`、不触碰业务数据库、不把凭据写入仓库。
+- Netlify 边缘代理从公开状态文件读取当前 origin，并只允许代理 `/api/*`、`/auth/*`、`/health`、`/ready` 到合法的 `*.trycloudflare.com` HTTPS 地址。
+- 保留 `jskzsjfx.netlify.app` 作为固定用户入口；停电后不再依赖手工修改 `netlify.toml` 或重新授权飞书。
+
+### 3. 验收
+
+- 注册并实际启动 `LiveOps-Gateway` 与既有 `LiveOps-Realtime-Sync`，验证本机 `/health`、`/ready`、新隧道和 Netlify 同源 `/ready`。
+- 验证重入不会产生第二实例、任务失败重启和可逆卸载；自动测试不得读取或输出正式密钥，不发送真实飞书群消息。
+- 更新 `docs/PROGRESS.md`、`docs/TEST_REPORT.md` 与 `docs/DEPLOYMENT.md`，最终运行 `make.cmd check` 和 `make.cmd verify-production`。

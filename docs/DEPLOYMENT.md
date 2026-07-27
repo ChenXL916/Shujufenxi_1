@@ -23,6 +23,32 @@ powershell -ExecutionPolicy Bypass -File .\infra\windows\unregister-realtime-syn
 
 该任务只保证当前 Windows 用户登录且电脑开机期间的后台循环，不会把 Cloudflare Quick Tunnel 变成固定入口。无人值守 24×7 公网运行仍应使用命名隧道或云服务器，并迁移到 Compose 的 Celery Worker/Beat。
 
+## Windows 本机 API 与公网网关自启动
+
+当前 Netlify 入口保持为 `https://jskzsjfx.netlify.app`。Windows 当前用户登录后，可由计划任务同时恢复 E 盘正式 API、Cloudflare Quick Tunnel 和 Netlify 动态边缘代理：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\infra\windows\register-gateway-task.ps1
+Start-ScheduledTask -TaskName LiveOps-Gateway
+```
+
+`scripts/gateway_service.py` 从本机忽略提交的 `.env.tunnel` 读取生产配置，先用轻量保活进程唤醒 WSL 内 Docker/Redis，等待本机 `/ready` 后再启动隧道。Quick Tunnel 地址变化后，只把公开 origin 写入 GitHub 的 `liveops-runtime` 运行分支；Netlify `backend-proxy` 边缘函数会读取该状态，并继续通过固定网页域名代理 `/api`、`/auth`、`/health`、`/ready`。任务或任一子进程异常退出后每分钟重启，文件锁和计划任务设置会阻止重复实例。
+
+运行前提：
+
+- `cloudflared.exe` 安装在标准目录；
+- GitHub CLI 已以仓库管理员账号登录；
+- E 盘项目虚拟环境和 `.env.tunnel` 存在；
+- 当前 Windows 用户已登录。出于不保存 Windows 密码和不复制 GitHub 凭据的安全要求，任务使用“登录时”触发，而不是在登录界面前以 SYSTEM 身份运行。
+
+日志位于 `logs\gateway-service-*`、`logs\gateway-api-*` 和 `logs\gateway-tunnel-*`。需要撤销时：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\infra\windows\unregister-gateway-task.ps1
+```
+
+该方案能自动恢复临时隧道并保持 Netlify 用户入口不变，但电脑断电期间仍无法提供服务。真正的无人值守 24×7 可用性仍需把后端迁到云服务器，或提供 Cloudflare 账号与自有域名配置命名隧道。
+
 ## 生产准备
 
 1. 复制 `.env.example` 为 `.env`，设置强随机数据库密码、JWT 密钥和字段加密密钥。

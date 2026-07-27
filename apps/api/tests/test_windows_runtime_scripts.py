@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 WINDOWS_INFRA = ROOT / "infra" / "windows"
 SERVICE_SCRIPT = ROOT / "scripts" / "realtime_sync_service.py"
+GATEWAY_SCRIPT = ROOT / "scripts" / "gateway_service.py"
 
 
 def test_realtime_sync_task_uses_local_env_and_singleton_guard() -> None:
@@ -34,10 +35,39 @@ def test_realtime_sync_task_has_reversible_unregister_script() -> None:
 
 
 def test_windows_runtime_scripts_do_not_embed_feishu_credentials() -> None:
-    paths = [*WINDOWS_INFRA.glob("*.ps1"), SERVICE_SCRIPT]
+    paths = [*WINDOWS_INFRA.glob("*.ps1"), SERVICE_SCRIPT, GATEWAY_SCRIPT]
     content = "\n".join(path.read_text(encoding="utf-8") for path in paths)
 
     assert "FEISHU_APP_ID" not in content
     assert "FEISHU_APP_SECRET" not in content
     assert "FEISHU_BOT_WEBHOOK" not in content
     assert "cli_" not in content
+
+
+def test_gateway_task_starts_api_tunnel_and_publishes_runtime_origin() -> None:
+    register = (WINDOWS_INFRA / "register-gateway-task.ps1").read_text(encoding="utf-8")
+    service = GATEWAY_SCRIPT.read_text(encoding="utf-8")
+
+    assert "scripts\\gateway_service.py" in register
+    assert "-AtLogOn" in register
+    assert "-MultipleInstances IgnoreNew" in register
+    assert "-RestartCount 99" in register
+    assert "gateway-service.lock" in service
+    assert 'environment["APP_ENV_FILE"] = str(ENV_FILE)' in service
+    assert '[wsl, "--exec", "/bin/sleep", "infinity"]' in service
+    assert '"uvicorn"' in service
+    assert '"http://127.0.0.1:8000"' in service
+    assert "trycloudflare" in service
+    assert '"gh", "api"' not in service
+    assert 'command = [gh, "api", endpoint]' in service
+    assert "runtime/backend-origin.json" in service
+
+
+def test_gateway_task_has_reversible_unregister_script() -> None:
+    unregister = (WINDOWS_INFRA / "unregister-gateway-task.ps1").read_text(encoding="utf-8")
+
+    assert "Stop-ScheduledTask" in unregister
+    assert "Unregister-ScheduledTask" in unregister
+    assert "gateway_service.py" in unregister
+    assert "cloudflared.exe" in unregister
+    assert "Stop-Process" in unregister
