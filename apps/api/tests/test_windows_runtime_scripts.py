@@ -61,6 +61,8 @@ def test_gateway_task_starts_api_tunnel_and_publishes_runtime_origin() -> None:
     assert '"gh", "api"' not in service
     assert 'command = [gh, "api", endpoint]' in service
     assert "runtime/backend-origin.json" in service
+    assert "WSL dependency keeper exited, code=" in service
+    assert "gateway service restarting in 60 seconds" in service
 
 
 def test_gateway_task_has_reversible_unregister_script() -> None:

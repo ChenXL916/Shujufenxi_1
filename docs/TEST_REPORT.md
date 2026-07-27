@@ -506,3 +506,13 @@
 - 未改写正式 SQLite 数据、飞书 token、OAuth 授权、用户密码、角色或直播间权限；未触发真实同步写入或群机器人测试消息。
 - Netlify Edge 只允许四类后端路径和 `*.trycloudflare.com` HTTPS origin，拒绝任意 registry 主机，响应不缓存。
 - Windows 任务使用当前用户登录触发，以复用本机 GitHub 凭据且不保存 Windows 密码；因此登录界面前不会启动，电脑断电期间也无法提供服务。
+
+### 补充耐久性复验与发布状态
+
+- 约 26 分钟持续运行后捕获到原 WSL 保活进程退出（代码 1），旧服务链随即停止且计划任务停留在 `Ready / LastResult=1`；据此否定了此前仅基于初始 `Running` 状态的长期自愈结论。
+- 修复后网关由进程内监督循环负责重建服务周期，并单独重启异常退出的 WSL 保活子进程。主动终止保活进程的故障注入中，计划任务全程 `Running`、本机 `/ready` 全程 HTTP 200，约 12 秒后检测到新的保活进程。
+- 修复后当前运行 origin 为 `https://diagram-have-possess-gaming.trycloudflare.com`；其 `/ready` 返回 HTTP 200，本机数据库和 Redis 就绪。
+- 定向回归：Ruff format/check 通过，`test_windows_runtime_scripts.py` 与 `test_deployment_safety.py` 合计 `12/12 passed`。
+- 最终完整回归：`make.cmd check` 退出码 0，后端 `197/197 passed`、覆盖率 `85.93%`，前端 `80/80 passed`、生产构建 23 个 JS Chunk 全部不超过 650 KiB，Chromium E2E `7/7 passed`；`make.cmd verify-production` 退出码 0。
+- Netlify OAuth 授权、站点关联和 Git 构建创建成功；构建 ID `6a66d11883641393a772eb31`、部署 ID `6a66d11883641393a772eb33`。
+- Netlify 最终状态为 `error`，明确错误 `Skipped due to account credit usage exceeded`；CLI 手工部署返回 `Forbidden`。固定域名首页仍为 HTTP 200，但 `/ready` 为 HTTP 502，因为尚在运行旧的硬编码 Quick Tunnel 代理产物。该项是外部账户额度阻塞，不计为发布通过。

@@ -368,9 +368,12 @@ def _run(service_log: TextIO) -> int:
                 if tunnel.poll() is not None:
                     raise RuntimeError(f"cloudflared exited, code={tunnel.returncode}")
                 if wsl_keeper is not None and wsl_keeper.poll() is not None:
-                    raise RuntimeError(
-                        f"WSL dependency keeper exited, code={wsl_keeper.returncode}"
+                    exit_code = wsl_keeper.returncode
+                    _log(
+                        service_log,
+                        f"WSL dependency keeper exited, code={exit_code}; restarting it",
                     )
+                    wsl_keeper = _start_wsl_keeper(service_log)
                 if _is_ready(timeout_seconds=5):
                     failures = 0
                 else:
@@ -394,11 +397,16 @@ def main() -> int:
     service_log_path = LOG_DIRECTORY / f"gateway-service-{day}.log"
     try:
         with service_log_path.open("a", encoding="utf-8", buffering=1) as service_log:
-            try:
-                return _run(service_log)
-            except Exception as exc:  # noqa: BLE001 - service boundary must log and restart
-                _log(service_log, f"gateway service stopped: {type(exc).__name__}: {exc}")
-                return 1
+            while True:
+                try:
+                    _run(service_log)
+                except Exception as exc:  # noqa: BLE001 - service boundary must self-heal
+                    _log(
+                        service_log,
+                        f"gateway service cycle failed: {type(exc).__name__}: {exc}",
+                    )
+                _log(service_log, "gateway service restarting in 60 seconds")
+                time.sleep(60)
     finally:
         _release_lock(lock)
 

@@ -611,3 +611,12 @@
 - [x] `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥、生产无 fixture 写入和 Docker 构建路径均有效；本机无 Windows Docker CLI，容器部分仍为等价静态验收。
 - [x] 安全边界：本阶段未改正式数据库、飞书授权、账号、角色、直播间权限、指标或预警规则，也未发送真实飞书群消息；GitHub 运行分支只存公开临时 origin。
 - [x] 可用性边界：当前方案能在 Windows 用户登录后自动恢复并保持固定 Netlify 入口，但电脑断电和停留在登录界面期间仍不可用；真正 24×7 无人值守需要云服务器或 Cloudflare 自有域名命名隧道。
+
+### 补充复验：运行自愈与 Netlify 发布边界
+
+- [x] 在持续运行约 26 分钟后复现 WSL 保活子进程以代码 1 退出，旧实现因此主动停止 API 和隧道，计划任务未按预期再次拉起；这证明只检查任务初始 `Running` 不足以验收自动恢复。
+- [x] 网关服务改为进程内永久监督循环：WSL 保活退出时就地重启，任一完整服务周期失败后等待 60 秒自动重建 API、隧道和运行地址，不再依赖 Windows 计划任务的失败重试语义。
+- [x] 主动终止一次 WSL 保活子进程后，`LiveOps-Gateway` 始终保持 `Running`，本机 `/ready` 始终为 HTTP 200，新的保活进程在下一轮监控中自动出现；当前公开 Quick Tunnel `/ready` 也为 HTTP 200。
+- [x] 自愈修复后的最终门禁再次通过：`make.cmd check` 退出码 0（后端 `197/197`、覆盖率 `85.93%`、前端 `80/80`、Chromium E2E `7/7`），`make.cmd verify-production` 退出码 0。
+- [x] Netlify CLI OAuth 已授权并成功关联站点 `jskzsjfx`，站点读取权限与 Git 构建创建接口均可用。
+- [ ] 固定 Netlify 入口的新 Edge 版本尚未发布：Netlify 对构建 `6a66d11883641393a772eb31` 返回 `Skipped due to account credit usage exceeded`，手工部署同时返回 HTTP 403 `Forbidden`。因此现有固定域名仍运行 2026-07-24 的旧代理产物，`/ready` 当前为 HTTP 502；需要账户恢复可用构建额度后重新触发生产构建，不能把当前固定域名声明为已恢复。
