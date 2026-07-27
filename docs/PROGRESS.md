@@ -620,3 +620,14 @@
 - [x] 自愈修复后的最终门禁再次通过：`make.cmd check` 退出码 0（后端 `197/197`、覆盖率 `85.93%`、前端 `80/80`、Chromium E2E `7/7`），`make.cmd verify-production` 退出码 0。
 - [x] Netlify CLI OAuth 已授权并成功关联站点 `jskzsjfx`，站点读取权限与 Git 构建创建接口均可用。
 - [ ] 固定 Netlify 入口的新 Edge 版本尚未发布：Netlify 对构建 `6a66d11883641393a772eb31` 返回 `Skipped due to account credit usage exceeded`，手工部署同时返回 HTTP 403 `Forbidden`。因此现有固定域名仍运行 2026-07-24 的旧代理产物，`/ready` 当前为 HTTP 502；需要账户恢复可用构建额度后重新触发生产构建，不能把当前固定域名声明为已恢复。
+
+## 2026-07-27 阶段 41：无 Netlify 额度的固定登录入口恢复
+
+- [x] FastAPI 在既有 API、认证和健康路由之后同源提供生产前端 `apps/web/dist`；静态资源使用长期缓存，页面和 SPA 回退禁止缓存，未知 `/api/*`、`/auth/*` 仍返回 JSON 404，不会被前端首页掩盖。
+- [x] 创建并启用 GitHub Pages 固定入口 `https://chenxl916.github.io/Shujufenxi_1/`；入口只读取公开的 `liveops-runtime/runtime/backend-origin.json`，校验 HTTPS 与 `*.trycloudflare.com` 后跳转当前网关，不保存密码、Cookie、飞书密钥或经营数据。
+- [x] 重启并重新注册 `LiveOps-Gateway`，当前 FastAPI、生产前端和 Quick Tunnel 已运行；固定入口由 GitHub 标记为 `built`，HTTP 200。
+- [x] 真实 Chromium 验收通过：固定入口自动跳转到当前 Quick Tunnel，网页账号登录按钮可见；同源 `/health=200`、`/ready=200`、未登录 `/auth/me=401`，登录请求不再经过返回 502 的 Netlify 旧代理。
+- [x] 定向回归 `11/11 passed`，覆盖前端资源、SPA 回退、API 404 边界、缺失产物错误以及 GitHub Pages origin 白名单；浏览器验收脚本保存在 `apps/web/scripts/verify-public-entry.mjs`。
+- [x] 最终 `make.cmd check` 退出码 0：Ruff、ESLint、mypy、TypeScript、Prettier 全部通过，后端 `201/201`、覆盖率 `85.93%`，前端 `80/80`、Chromium E2E `7/7`，生产构建 23 个 JS Chunk 全部不超过 650 KiB。
+- [x] 最终 `make.cmd verify-production` 退出码 0；门禁完成后再次运行真实公网浏览器验收，固定入口、跳转、登录页和三项接口状态仍全部符合预期。
+- [ ] GitHub Pages 入口解决的是网页账号密码登录；飞书 OAuth 回调仍登记为 Netlify 固定域名，Netlify 额度恢复并发布新版前，页面上的“使用飞书登录”不作为本入口的验收项。

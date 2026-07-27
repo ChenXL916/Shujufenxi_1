@@ -142,3 +142,16 @@ console.log(JSON.stringify({{ status: response.status, calls }}));
         "url": "https://valid-runtime.trycloudflare.com/api/v1/ping?x=1",
         "method": "GET",
     }
+
+
+def test_github_pages_loader_uses_the_validated_runtime_origin() -> None:
+    loader = (ROOT / "infra" / "github-pages" / "index.html").read_text(encoding="utf-8")
+
+    assert (
+        "raw.githubusercontent.com/ChenXL916/Shujufenxi_1/"
+        "liveops-runtime/runtime/backend-origin.json" in loader
+    )
+    assert 'origin.protocol !== "https:"' in loader
+    assert '.endsWith(".trycloudflare.com")' in loader
+    assert "window.location.replace(target.href)" in loader
+    assert 'cache: "no-store"' in loader

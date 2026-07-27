@@ -516,3 +516,25 @@
 - 最终完整回归：`make.cmd check` 退出码 0，后端 `197/197 passed`、覆盖率 `85.93%`，前端 `80/80 passed`、生产构建 23 个 JS Chunk 全部不超过 650 KiB，Chromium E2E `7/7 passed`；`make.cmd verify-production` 退出码 0。
 - Netlify OAuth 授权、站点关联和 Git 构建创建成功；构建 ID `6a66d11883641393a772eb31`、部署 ID `6a66d11883641393a772eb33`。
 - Netlify 最终状态为 `error`，明确错误 `Skipped due to account credit usage exceeded`；CLI 手工部署返回 `Forbidden`。固定域名首页仍为 HTTP 200，但 `/ready` 为 HTTP 502，因为尚在运行旧的硬编码 Quick Tunnel 代理产物。该项是外部账户额度阻塞，不计为发布通过。
+
+## 2026-07-27 阶段 41：GitHub Pages 固定登录入口
+
+### 发布结果
+
+- 固定入口：`https://chenxl916.github.io/Shujufenxi_1/`。
+- GitHub Pages 状态：`built`，入口 HTTP 200；`gh-pages` 同时发布 `index.html`、`404.html` 与 `.nojekyll`。
+- 当前入口读取受白名单保护的公开运行 origin，再跳转由本机网关承载的完整前端和 API；网页账号密码登录保持同源 Cookie。
+
+### 浏览器与接口验收
+
+- Chromium 从固定入口进入后，成功跳转 `https://headed-shipment-substantial-anymore.trycloudflare.com/`，并看到“登录并查看数据”按钮。
+- 跳转后 `/health` 返回 200、`/ready` 返回 200、未登录 `/auth/me` 返回预期的 401；三项均为 JSON，不存在 Netlify 旧代理的 502。
+- 定向测试 `11/11 passed`：前端静态资源、React SPA 回退、API/认证 404 隔离、缺失构建错误与 GitHub Pages origin 校验全部通过。
+- 完整门禁 `make.cmd check` 最终退出码 0：后端 `201/201 passed`、覆盖率 `85.93%`，前端 `80/80 passed`，Chromium E2E `7/7 passed`；首次门禁捕获的浏览器验收脚本 Prettier 漂移已格式化并通过第二次全量门禁。
+- `make.cmd verify-production` 退出码 0；最终构建后再次执行公网 Chromium 验收，结果与发布时一致。
+
+### 边界
+
+- 本阶段没有修改正式数据、账号、密码哈希、角色、直播间权限、飞书授权或预警规则，也没有发送群消息。
+- 网页账号密码登录已恢复；飞书 OAuth 回调仍绑定 Netlify 域名，不能把 GitHub Pages 入口声明为飞书登录已恢复。
+- 固定入口不随 Quick Tunnel 地址变化，但后端仍运行在本机；电脑断电或 Windows 用户未登录期间无法提供实时服务。

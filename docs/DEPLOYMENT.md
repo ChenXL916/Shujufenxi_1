@@ -25,14 +25,14 @@ powershell -ExecutionPolicy Bypass -File .\infra\windows\unregister-realtime-syn
 
 ## Windows 本机 API 与公网网关自启动
 
-当前 Netlify 入口保持为 `https://jskzsjfx.netlify.app`。Windows 当前用户登录后，可由计划任务同时恢复 E 盘正式 API、Cloudflare Quick Tunnel 和 Netlify 动态边缘代理：
+当前可用固定入口为 `https://chenxl916.github.io/Shujufenxi_1/`。Windows 当前用户登录后，可由计划任务同时恢复 E 盘正式 API、内置前端、Cloudflare Quick Tunnel 和 GitHub Pages 动态入口：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\infra\windows\register-gateway-task.ps1
 Start-ScheduledTask -TaskName LiveOps-Gateway
 ```
 
-`scripts/gateway_service.py` 从本机忽略提交的 `.env.tunnel` 读取生产配置，先用轻量保活进程唤醒 WSL 内 Docker/Redis，等待本机 `/ready` 后再启动隧道。Quick Tunnel 地址变化后，只把公开 origin 写入 GitHub 的 `liveops-runtime` 运行分支；Netlify `backend-proxy` 边缘函数会读取该状态，并继续通过固定网页域名代理 `/api`、`/auth`、`/health`、`/ready`。任务或任一子进程异常退出后每分钟重启，文件锁和计划任务设置会阻止重复实例。
+`scripts/gateway_service.py` 从本机忽略提交的 `.env.tunnel` 读取生产配置，先用轻量保活进程唤醒 WSL 内 Docker/Redis，等待本机 `/ready` 后再启动隧道。FastAPI 在全部 API/认证路由之后同源提供 `apps/web/dist`，包括 React SPA 回退。Quick Tunnel 地址变化后，只把公开 origin 写入 GitHub 的 `liveops-runtime` 运行分支；GitHub Pages 固定入口读取该状态并跳转到当前 HTTPS 网关，所以密码登录、Cookie、实时数据和 API 保持同源。任务或任一子进程异常退出后每分钟重建服务周期，文件锁和计划任务设置会阻止重复实例。
 
 运行前提：
 
@@ -47,7 +47,7 @@ Start-ScheduledTask -TaskName LiveOps-Gateway
 powershell -ExecutionPolicy Bypass -File .\infra\windows\unregister-gateway-task.ps1
 ```
 
-该方案能自动恢复临时隧道并保持 Netlify 用户入口不变，但电脑断电期间仍无法提供服务。真正的无人值守 24×7 可用性仍需把后端迁到云服务器，或提供 Cloudflare 账号与自有域名配置命名隧道。
+该方案能自动恢复临时隧道并保持 GitHub Pages 用户入口不变，但电脑断电、停留在 Windows 登录界面或 GitHub/Cloudflare 公网不可达期间仍无法提供服务。当前 Netlify 站点因账户构建额度耗尽仍停留在旧代理产物，不作为可用入口。真正的无人值守 24×7 可用性仍需把后端迁到云服务器，或提供 Cloudflare 账号与自有域名配置命名隧道。
 
 ## 生产准备
 

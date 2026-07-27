@@ -12,7 +12,7 @@ from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from redis import Redis
 from sqlalchemy import inspect as sql_inspect
 from sqlalchemy import text as sql_text
@@ -30,6 +30,7 @@ settings = get_settings()
 logging.basicConfig(level=settings.log_level, format="%(message)s")
 logger = logging.getLogger("live_ops.request")
 API_ROOT = Path(__file__).resolve().parents[1]
+WEB_DIST = API_ROOT.parents[1] / "apps" / "web" / "dist"
 REQUIRED_DATABASE_TABLES = frozenset(
     {"alembic_version", "rooms", "hourly_facts", "sync_runs", "users"}
 )
@@ -146,3 +147,32 @@ def ready() -> Response:
         "dependencies": dependencies,
     }
     return JSONResponse(payload, status_code=200 if healthy else 503)
+
+
+def _frontend_file(relative_path: str) -> Path | None:
+    root = WEB_DIST.resolve()
+    candidate = (root / relative_path).resolve()
+    if candidate != root and root not in candidate.parents:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+@app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+def frontend(full_path: str) -> Response:
+    if full_path.partition("/")[0] in {"api", "auth"}:
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+
+    index = WEB_DIST / "index.html"
+    if not index.is_file():
+        return JSONResponse(
+            {"detail": "Frontend build is unavailable"},
+            status_code=503,
+        )
+
+    requested = _frontend_file(full_path) if full_path else None
+    response = FileResponse(requested or index)
+    if full_path.startswith("assets/") and requested is not None:
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
+        response.headers["Cache-Control"] = "no-store"
+    return response
