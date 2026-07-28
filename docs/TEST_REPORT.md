@@ -538,3 +538,32 @@
 - 本阶段没有修改正式数据、账号、密码哈希、角色、直播间权限、飞书授权或预警规则，也没有发送群消息。
 - 网页账号密码登录已恢复；飞书 OAuth 回调仍绑定 Netlify 域名，不能把 GitHub Pages 入口声明为飞书登录已恢复。
 - 固定入口不随 Quick Tunnel 地址变化，但后端仍运行在本机；电脑断电或 Windows 用户未登录期间无法提供实时服务。
+
+## 2026-07-28 阶段 42：预警卡片、指标配置与主播时段明细
+
+### 验收结论
+
+- 结论：通过。飞书主播趋势汇总改为原生结构化卡片；主播分析使用按业务环节分组的指标配置弹窗；主播时段明细支持按当前筛选下载 XLSX/CSV 和全屏查看。
+- 飞书消息未改指标口径、榜单数量、去重或发送规则；本轮不向真实群发送测试消息，下一次真实触发或人工发送会使用新卡片结构。
+- 导出在服务端复用 `dashboard.export`、直播间范围校验、CSRF 和敏感导出审计，前端隐藏或按钮状态不是唯一权限边界。
+
+### 自动化测试
+
+- 定向后端：主播趋势卡片与主播时段导出 `10/10 passed`。
+- 定向前端：API、筛选和主播分析 `23/23 passed`。
+- 完整命令：`make.cmd check`，退出码 0。
+- 静态检查：Ruff format/check、mypy（64 个源文件）、ESLint、TypeScript、Prettier 全部通过。
+- 后端：`201/201 passed`，领域与服务覆盖率 `85.85%`；保留 10 条 Starlette/Alembic 兼容性弃用警告。
+- 前端：21 个测试文件、`82/82 passed`；保留 1 条 Ant Design StickyScrollBar 测试环境 `act(...)` 提示，不影响断言、构建或浏览器运行。
+- 构建：Vite 转换 5,570 个模块，生成 23 个 JS Chunk，全部不超过 650 KiB。
+- E2E：Chromium `8/8 passed`；新增用例真实请求 `/api/v1/analytics/anchors/hours/export` 并确认下载文件名以 `.xlsx` 结尾。
+
+### 视觉与生产验收
+
+- 1440 × 900 指标配置和全屏明细截图保存在 `artifacts/stage42/`；参考与实现同屏对照后，`design-qa.md` 为 `final result: passed`。
+- `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径全部有效。
+- 本机没有 Docker CLI，未实启完整 Compose 栈；完成的是 YAML、路径和安全策略等价静态校验。
+- 自动测试使用隔离数据库、开发认证旁路和空飞书凭据，没有改写正式库、账号、角色、直播间权限或飞书配置，也没有发送真实群消息。
+- 正式服务激活前生成 `backups/live_ops_20260728T041358Z.sqlite3`；源库与备份文件大小均为 83,562,496 字节，`PRAGMA integrity_check=ok`，并一致包含 `hourly_facts=2499`、`users=9`。
+- `LiveOps-Gateway` 已完成干净重启，`LiveOps-Realtime-Sync` 保持 `Running`；本地和当前公网源站 `/health`、`/ready` 均为 HTTP 200，运行模式为 `feishu`，数据库与 Redis 均为 `ok`。
+- 当前公网源站为 `https://velocity-practitioners-marc-looking.trycloudflare.com`；主播分析 JS 分包和全局 CSS 分包均为 HTTP 200，固定 GitHub Pages 入口同样返回 HTTP 200。

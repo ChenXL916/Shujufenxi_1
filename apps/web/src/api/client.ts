@@ -321,6 +321,29 @@ export async function getAnchorHourDetails(
     })
   ).data
 }
+
+export async function downloadAnchorHourDetails(
+  filters: DashboardFilters,
+  fileFormat: 'csv' | 'xlsx' = 'xlsx',
+): Promise<void> {
+  const response = await client.post<Blob>('/analytics/anchors/hours/export', null, {
+    params: {
+      ...params(filters),
+      metric_keys: filters.metricKeys,
+      file_format: fileFormat,
+    },
+    responseType: 'blob',
+  })
+  const disposition = String(response.headers['content-disposition'] ?? '')
+  const matchedName = disposition.match(/filename="?([^";]+)"?/i)?.[1]
+  const url = URL.createObjectURL(response.data)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = matchedName ?? `anchor-hour-details.${fileFormat}`
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
 export async function getComparisons(
   filters: DashboardFilters,
   comparisonType: string,

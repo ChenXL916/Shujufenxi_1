@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -190,6 +191,74 @@ class AnalysisService:
             "page_size": page_size,
             "metric_keys": list(selected_metrics),
         }
+
+    def export_anchor_hours(
+        self,
+        filters: DashboardFilters,
+        metric_keys: tuple[str, ...] = (),
+        file_format: Literal["csv", "xlsx"] = "xlsx",
+    ) -> tuple[bytes, str, str]:
+        self.assert_export_allowed(filters)
+        selected_metrics = self._selected_metrics(metric_keys)
+        payload = self.anchor_hours(
+            filters,
+            selected_metrics,
+            page=1,
+            page_size=2**31 - 1,
+        )
+        headers = [
+            "日期",
+            "自然小时",
+            "直播间",
+            "主播",
+            "场控",
+            *[self.catalog.by_key[key].field for key in selected_metrics],
+        ]
+        rows = [
+            [
+                item["business_date"],
+                item["hour_slot"],
+                item["room_name"],
+                item["anchor_name"],
+                item["control_name"] or "",
+                *[item["metrics"].get(key) for key in selected_metrics],
+            ]
+            for item in payload["items"]
+        ]
+        if file_format == "csv":
+            stream = io.StringIO(newline="")
+            writer = csv.writer(stream)
+            writer.writerow(headers)
+            for row in rows:
+                writer.writerow([self._safe_cell(value) for value in row])
+            return (
+                stream.getvalue().encode("utf-8-sig"),
+                "text/csv",
+                "anchor-hour-details.csv",
+            )
+
+        workbook = Workbook()
+        sheet = workbook.active
+        assert sheet is not None
+        sheet.title = "主播时段明细"
+        sheet.freeze_panes = "A2"
+        sheet.append(headers)
+        for row in rows:
+            sheet.append([self._safe_cell(value) for value in row])
+        sheet.auto_filter.ref = sheet.dimensions
+        for column_index, column in enumerate(sheet.columns, start=1):
+            values = [str(cell.value or "") for cell in column]
+            sheet.column_dimensions[get_column_letter(column_index)].width = min(
+                max(max(map(len, values), default=8) + 2, 12),
+                28,
+            )
+        stream_bytes = io.BytesIO()
+        workbook.save(stream_bytes)
+        return (
+            stream_bytes.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "anchor-hour-details.xlsx",
+        )
 
     @staticmethod
     def _sort_value(row: dict[str, Any], metric_keys: tuple[str, ...]) -> Decimal:

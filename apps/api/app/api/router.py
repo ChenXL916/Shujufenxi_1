@@ -177,6 +177,65 @@ def anchor_hours(
     )
 
 
+@router.post("/analytics/anchors/hours/export")
+def export_anchor_hours(
+    db: DbSession,
+    access: ExportAccess,
+    request: Request,
+    file_format: Literal["csv", "xlsx"] = "xlsx",
+    start_date: date | None = None,
+    end_date: date | None = None,
+    room_ids: Annotated[list[UUID] | None, Query()] = None,
+    anchor_names: Annotated[list[str] | None, Query()] = None,
+    anchor_members: Annotated[list[str] | None, Query()] = None,
+    control_names: Annotated[list[str] | None, Query()] = None,
+    hour_slots: Annotated[list[str] | None, Query()] = None,
+    metric_keys: Annotated[list[str] | None, Query()] = None,
+) -> Response:
+    filters = filters_from_query(
+        start_date,
+        end_date,
+        room_ids,
+        anchor_names,
+        anchor_members,
+        control_names,
+        hour_slots,
+    )
+    access.assert_rooms(filters.room_ids)
+    try:
+        content, media_type, filename = AnalysisService(
+            db,
+            CATALOG,
+            access,
+        ).export_anchor_hours(
+            filters,
+            tuple(metric_keys or ()),
+            file_format,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    record_permission_audit(
+        db,
+        actor_user_id=access.user_id,
+        action="sensitive_data_export",
+        target_type="anchor_hour_detail_export",
+        target_id=filename,
+        after_value={
+            "format": file_format,
+            "metric_keys": list(metric_keys or ()),
+            "requested_room_ids": [str(item) for item in filters.room_ids],
+            "scope": access.scope_label,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/analytics/controls/summary")
 def control_summary(
     db: DbSession,

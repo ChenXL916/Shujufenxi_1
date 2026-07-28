@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
@@ -140,9 +140,10 @@ vi.mock('@/api/client', () => ({
     page_size: 50,
     metric_keys: ['period_buyers'],
   }),
+  downloadAnchorHourDetails: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { getAnalysis, getAnchorHourDetails } from '@/api/client'
+import { downloadAnchorHourDetails, getAnalysis, getAnchorHourDetails } from '@/api/client'
 import { AnalysisPage } from './AnalysisPage'
 
 beforeEach(() => {
@@ -203,7 +204,7 @@ test('主播分析按 URL 指标筛选动态显示数据列并传给 API', async
   expect(screen.queryByRole('columnheader', { name: '时段整体成交金额' })).not.toBeInTheDocument()
   expect(screen.getByRole('columnheader', { name: /时均成交/ })).toBeInTheDocument()
   expect(screen.getByText('已选 1 个指标')).toBeInTheDocument()
-  expect(screen.getByRole('combobox', { name: '指标' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '配置指标，已选 1 个' })).toBeInTheDocument()
   expect(screen.getByLabelText('快捷周期')).toBeInTheDocument()
   expect(screen.getByText('主播时段明细')).toBeInTheDocument()
   expect(await screen.findByRole('columnheader', { name: '自然小时' })).toBeInTheDocument()
@@ -279,4 +280,81 @@ test('主播汇总每个数值列常显升降序快捷键并可按时均成交�
       .getAllByRole('button', { name: /查看.+的全部时段数据/ })
       .map((button) => button.textContent),
   ).toEqual(['Q-李昕', 'Q-王敏'])
+})
+
+test('主播指标配置按业务环节分组并在应用后同步刷新两张表', async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/anchors?start=2026-07-08&end=2026-07-08']}>
+        <AnalysisPage dimension="anchors" />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+
+  fireEvent.click(await screen.findByRole('button', { name: '配置指标，已选 3 个' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByText('流量人群')).toBeInTheDocument()
+  expect(within(dialog).getByText('交易结果')).toBeInTheDocument()
+  expect(within(dialog).getByText('转化效率')).toBeInTheDocument()
+  expect(within(dialog).getByText('投放回报')).toBeInTheDocument()
+  expect(within(dialog).getByRole('textbox', { name: '搜索指标' })).toBeInTheDocument()
+
+  fireEvent.click(within(dialog).getByRole('checkbox', { name: /时段成交人数/ }))
+  fireEvent.click(within(dialog).getByRole('button', { name: '应用 2 个指标' }))
+
+  await waitFor(() =>
+    expect(getAnalysis).toHaveBeenLastCalledWith(
+      'anchors',
+      expect.objectContaining({
+        metricKeys: ['period_overall_amount', 'period_impression_view_rate'],
+      }),
+    ),
+  )
+  expect(getAnchorHourDetails).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      metricKeys: ['period_overall_amount', 'period_impression_view_rate'],
+    }),
+    1,
+    50,
+  )
+})
+
+test('主播时段明细支持按当前筛选下载和全屏查看', async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter
+        initialEntries={[
+          '/anchors?start=2026-07-08&end=2026-07-08&rooms=room-1&metrics=period_buyers',
+        ]}
+      >
+        <AnalysisPage dimension="anchors" />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+
+  const downloadButton = await screen.findByRole('button', { name: '下载表格' })
+  await waitFor(() => expect(downloadButton).toBeEnabled())
+  fireEvent.click(downloadButton)
+  await waitFor(() =>
+    expect(downloadAnchorHourDetails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomIds: ['room-1'],
+        metricKeys: ['period_buyers'],
+      }),
+      'xlsx',
+    ),
+  )
+
+  const fullscreenButton = screen.getByRole('button', { name: '全屏查看' })
+  expect(fullscreenButton).toBeEnabled()
+  fireEvent.click(fullscreenButton)
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByRole('button', { name: '退出全屏' })).toBeInTheDocument()
+  expect(within(dialog).getByRole('columnheader', { name: '自然小时' })).toBeInTheDocument()
+  expect(within(dialog).getByText('当前筛选范围共 1 条时段数据')).toBeInTheDocument()
+
+  fireEvent.click(within(dialog).getByRole('button', { name: '退出全屏' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })

@@ -2,6 +2,7 @@ import { CalendarOutlined, FilterOutlined, ReloadOutlined, TeamOutlined } from '
 import { Button, DatePicker, Drawer, Segmented, Select, Space } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
+import { MetricConfigurator } from '@/components/MetricConfigurator'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import type { DashboardFilters, DateMode, FilterOptions, Grain } from '@/types/dashboard'
 import { metricLabel } from '@/utils/format'
@@ -15,6 +16,8 @@ interface Props {
   showMetrics?: boolean
   showGrain?: boolean
   showPeriodPresets?: boolean
+  metricConfigurator?: boolean
+  metricDefaultKeys?: string[]
 }
 
 const PERIOD_PRESETS = [1, 3, 5, 7, 15, 30] as const
@@ -28,6 +31,8 @@ export function FilterBar({
   showMetrics = false,
   showGrain = showMetrics,
   showPeriodPresets = false,
+  metricConfigurator = false,
+  metricDefaultKeys = [],
 }: Props) {
   const mobile = useMediaQuery('(max-width: 768px)')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -232,7 +237,14 @@ export function FilterBar({
           onChange={(hours) => update({ hours })}
           className="filter-select hours"
         />
-        {showMetrics ? (
+        {showMetrics && metricConfigurator ? (
+          <MetricConfigurator
+            metrics={options?.metrics}
+            value={filters.metricKeys}
+            defaultMetricKeys={metricDefaultKeys}
+            onChange={(metricKeys) => update({ metricKeys })}
+          />
+        ) : showMetrics ? (
           <Select
             mode="multiple"
             maxTagCount={2}

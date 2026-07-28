@@ -1,3 +1,4 @@
+import io
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from time import perf_counter
@@ -5,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -425,6 +427,17 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
                 ("page_size", "20"),
             ],
         )
+        buyer_only_anchor_hour_export = client.post(
+            "/api/v1/analytics/anchors/hours/export",
+            params=[
+                ("start_date", "2026-07-08"),
+                ("end_date", "2026-07-08"),
+                ("anchor_names", "Q-李昕"),
+                ("hour_slots", "08-09"),
+                ("metric_keys", "period_buyers"),
+                ("file_format", "xlsx"),
+            ],
+        )
         pivot = client.get(
             "/api/v1/pivot/anchor-control",
             params={"start_date": "2026-07-08", "end_date": "2026-07-08"},
@@ -549,6 +562,35 @@ def test_overview_timeline_and_details_follow_hour_axis_contract(
     assert anchor_hour["control_name"] == "郑荣贵"
     assert Decimal(str(anchor_hour["metrics"]["period_buyers"])) == Decimal("8")
     assert "period_overall_amount" not in anchor_hour["metrics"]
+    assert buyer_only_anchor_hour_export.status_code == 200
+    assert (
+        "anchor-hour-details.xlsx" in buyer_only_anchor_hour_export.headers["content-disposition"]
+    )
+    workbook = load_workbook(
+        io.BytesIO(buyer_only_anchor_hour_export.content),
+        read_only=True,
+        data_only=True,
+    )
+    sheet = workbook.active
+    assert sheet is not None
+    export_rows = list(sheet.iter_rows(min_row=1, max_row=2, values_only=True))
+    workbook.close()
+    assert list(export_rows[0]) == [
+        "日期",
+        "自然小时",
+        "直播间",
+        "主播",
+        "场控",
+        "时段成交人数",
+    ]
+    assert export_rows[1][0].date() == date(2026, 7, 8)
+    assert list(export_rows[1][1:5]) == [
+        "08-09",
+        "动态测试直播间",
+        "Q-李昕",
+        "郑荣贵",
+    ]
+    assert Decimal(str(export_rows[1][5])) == Decimal("8")
     assert pivot.json()[0]["children"][0]["level"] == "control"
     assert exported.status_code == 200
     assert exported.content.startswith(b"PK")

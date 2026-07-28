@@ -432,6 +432,20 @@ def test_anchor_trend_service_merges_rankings_deduplicates_and_scopes_rooms() ->
         serialized = json.dumps([event.message_snapshot for event in events], ensure_ascii=False)
         assert "主播近期数据上涨榜" in serialized
         assert "主播近期数据下跌预警" in serialized
+        for event in events:
+            elements = event.message_snapshot["card"]["elements"]
+            assert elements[0]["tag"] == "div"
+            assert len(elements[0]["fields"]) == 2
+            assert any(element.get("tag") == "hr" for element in elements)
+            metric_blocks = [
+                element
+                for element in elements
+                if element.get("tag") == "div" and len(element.get("fields", [])) == 4
+            ]
+            assert len(metric_blocks) == event.anchor_count
+            assert elements[-2]["tag"] == "note"
+            assert elements[-1]["tag"] == "action"
+            assert "\n---\n" not in json.dumps(elements, ensure_ascii=False)
 
         repeated = service.recalculate(
             rule_id=all_rooms_rule.id,

@@ -1,8 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons'
-import { Button, Card, Space, Table } from 'antd'
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  DownloadOutlined,
+  FullscreenExitOutlined,
+  FullscreenOutlined,
+} from '@ant-design/icons'
+import { Button, Card, message, Modal, Space, Table } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
-import { getAnalysis, getAnchorHourDetails, getFilterOptions } from '@/api/client'
+import {
+  downloadAnchorHourDetails,
+  getAnalysis,
+  getAnchorHourDetails,
+  getFilterOptions,
+} from '@/api/client'
 import { FilterBar } from '@/components/FilterBar'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyPanel, ErrorPanel, LoadingPanel } from '@/components/StatePanel'
@@ -84,6 +95,8 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
   const [detailPage, setDetailPage] = useState(1)
   const [detailPageSize, setDetailPageSize] = useState(50)
   const [sort, setSort] = useState<AnalysisSortState>(null)
+  const [detailFullscreen, setDetailFullscreen] = useState(false)
+  const [exportingDetails, setExportingDetails] = useState(false)
   const updateFilters = useCallback(
     (patch: Partial<DashboardFilters>) => {
       setDetailPage(1)
@@ -272,6 +285,42 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
     ],
     [selectedMetrics],
   )
+  const exportDetails = async () => {
+    setExportingDetails(true)
+    try {
+      await downloadAnchorHourDetails(analysisFilters, 'xlsx')
+      void message.success('主播时段明细已下载')
+    } catch {
+      void message.error('下载失败，请检查导出权限或稍后重试')
+    } finally {
+      setExportingDetails(false)
+    }
+  }
+  const renderAnchorHourTable = (fullscreen = false) => (
+    <Table<AnchorHourDetailRow>
+      rowKey="key"
+      sticky
+      className={fullscreen ? 'anchor-hour-table is-fullscreen' : 'anchor-hour-table'}
+      scroll={{
+        x: 638 + selectedMetrics.length * 150,
+        y: fullscreen ? 'calc(100vh - 236px)' : 620,
+      }}
+      dataSource={anchorHours.data?.items ?? []}
+      columns={anchorHourColumns}
+      pagination={{
+        current: detailPage,
+        pageSize: detailPageSize,
+        total: anchorHours.data?.total ?? 0,
+        showSizeChanger: true,
+        pageSizeOptions: [20, 50, 100, 200],
+        showTotal: (total) => `共 ${total} 条时段数据`,
+        onChange: (page, pageSize) => {
+          setDetailPage(pageSize === detailPageSize ? page : 1)
+          setDetailPageSize(pageSize)
+        },
+      }}
+    />
+  )
   return (
     <Space orientation="vertical" size={16} className="page-stack">
       <PageHeader title={title} description={subtitle} eyebrow="PEOPLE PERFORMANCE" />
@@ -283,6 +332,8 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
         showMetrics
         showGrain={false}
         showPeriodPresets
+        metricConfigurator
+        metricDefaultKeys={defaultMetricKeys}
       />
       <Card
         className="data-card"
@@ -313,9 +364,32 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
           className="data-card"
           title="主播时段明细"
           extra={
-            anchorHours.data
-              ? `当前筛选范围共 ${anchorHours.data.total} 条时段数据`
-              : '按当前筛选加载全部时段'
+            <div className="anchor-hour-card-toolbar">
+              <span className="anchor-hour-result-count">
+                {anchorHours.data
+                  ? `当前筛选范围共 ${anchorHours.data.total} 条时段数据`
+                  : '按当前筛选加载全部时段'}
+              </span>
+              <Space size={8}>
+                <Button
+                  icon={<DownloadOutlined />}
+                  aria-label="下载表格"
+                  loading={exportingDetails}
+                  disabled={!anchorHours.data?.total}
+                  onClick={() => void exportDetails()}
+                >
+                  下载表格
+                </Button>
+                <Button
+                  icon={<FullscreenOutlined />}
+                  aria-label="全屏查看"
+                  disabled={!anchorHours.data?.total}
+                  onClick={() => setDetailFullscreen(true)}
+                >
+                  全屏查看
+                </Button>
+              </Space>
+            </div>
           }
         >
           {anchorHours.isLoading ? (
@@ -325,28 +399,45 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
           ) : !anchorHours.data?.items.length ? (
             <EmptyPanel />
           ) : (
-            <Table<AnchorHourDetailRow>
-              rowKey="key"
-              sticky
-              scroll={{ x: 638 + selectedMetrics.length * 150, y: 620 }}
-              dataSource={anchorHours.data.items}
-              columns={anchorHourColumns}
-              pagination={{
-                current: detailPage,
-                pageSize: detailPageSize,
-                total: anchorHours.data.total,
-                showSizeChanger: true,
-                pageSizeOptions: [20, 50, 100, 200],
-                showTotal: (total) => `共 ${total} 条时段数据`,
-                onChange: (page, pageSize) => {
-                  setDetailPage(pageSize === detailPageSize ? page : 1)
-                  setDetailPageSize(pageSize)
-                },
-              }}
-            />
+            renderAnchorHourTable()
           )}
         </Card>
       ) : null}
+      <Modal
+        open={detailFullscreen}
+        width="calc(100vw - 32px)"
+        style={{ top: 16 }}
+        rootClassName="anchor-hour-fullscreen-modal"
+        title={
+          <div className="anchor-hour-fullscreen-title">
+            <div>
+              <strong>主播时段明细</strong>
+              <span>当前筛选范围共 {anchorHours.data?.total ?? 0} 条时段数据</span>
+            </div>
+            <Space>
+              <Button
+                icon={<DownloadOutlined />}
+                aria-label="下载表格"
+                loading={exportingDetails}
+                onClick={() => void exportDetails()}
+              >
+                下载表格
+              </Button>
+              <Button
+                icon={<FullscreenExitOutlined />}
+                aria-label="退出全屏"
+                onClick={() => setDetailFullscreen(false)}
+              >
+                退出全屏
+              </Button>
+            </Space>
+          </div>
+        }
+        footer={null}
+        onCancel={() => setDetailFullscreen(false)}
+      >
+        {anchorHours.data?.items.length ? renderAnchorHourTable(true) : <EmptyPanel />}
+      </Modal>
     </Space>
   )
 }

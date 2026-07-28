@@ -825,10 +825,31 @@ class AnchorTrendService:
             if rise
             else f"【主播近期数据下跌预警｜最近{period_days}天】"
         )
-        lines = [
-            f"**当前周期：** {current_start:%m月%d日}—{current_end:%m月%d日}",
-            f"**对比周期：** {baseline_start:%m月%d日}—{baseline_end:%m月%d日}",
-            "",
+        elements: list[dict[str, Any]] = [
+            {
+                "tag": "div",
+                "fields": [
+                    {
+                        "is_short": True,
+                        "text": {
+                            "tag": "lark_md",
+                            "content": (
+                                f"**当前周期**\n{current_start:%m月%d日}—{current_end:%m月%d日}"
+                            ),
+                        },
+                    },
+                    {
+                        "is_short": True,
+                        "text": {
+                            "tag": "lark_md",
+                            "content": (
+                                f"**对比周期**\n{baseline_start:%m月%d日}—{baseline_end:%m月%d日}"
+                            ),
+                        },
+                    },
+                ],
+            },
+            {"tag": "hr"},
         ]
         for rank, item in enumerate(items, start=1):
             target_status = (
@@ -842,54 +863,115 @@ class AnchorTrendService:
             )
             hours = item.major_rise_hours if rise else item.major_fall_hours
             label = "主要上涨时段" if rise else "主要下跌时段"
-            roi_line = (
-                f"当前ROI：{AnchorTrendService._number(item.current_roi)} ｜ "
-                f"基准ROI：{AnchorTrendService._number(item.baseline_roi)} ｜ "
-                f"ROI变化：{AnchorTrendService._percent(item.roi_growth_rate)}"
-            )
-            spend_line = (
-                f"当前消耗：¥{AnchorTrendService._money(item.current_spend)} ｜ "
-                f"基准消耗：¥{AnchorTrendService._money(item.baseline_spend)} ｜ "
-                f"消耗变化：{AnchorTrendService._percent(item.spend_growth_rate)}"
-            )
-            target_line = (
-                f"ROI目标：{AnchorTrendService._number(item.roi_target)} ｜ "
-                f"目标状态：**{target_status}** ｜ "
-                f"目标差值：{AnchorTrendService._signed_number(item.roi_target_gap)}"
-            )
             contribution_hours = "、".join(hours) if hours else "暂无有效可比小时"
-            status_line = (
-                f"综合状态：**{item.primary_status_name}** ｜ {label}：{contribution_hours}"
+            current_roi = AnchorTrendService._number(item.current_roi)
+            baseline_roi = AnchorTrendService._number(item.baseline_roi)
+            roi_change = AnchorTrendService._percent(item.roi_growth_rate)
+            current_spend = AnchorTrendService._money(item.current_spend)
+            baseline_spend = AnchorTrendService._money(item.baseline_spend)
+            spend_change = AnchorTrendService._percent(item.spend_growth_rate)
+            roi_target = AnchorTrendService._number(item.roi_target)
+            target_gap = AnchorTrendService._signed_number(item.roi_target_gap)
+            elements.extend(
+                [
+                    {
+                        "tag": "div",
+                        "text": {
+                            "tag": "lark_md",
+                            "content": (
+                                f"**{rank:02d}  {item.anchor_name}**\n"
+                                f"<font color='grey'>{item.room_name}</font>"
+                            ),
+                        },
+                    },
+                    {
+                        "tag": "div",
+                        "fields": [
+                            {
+                                "is_short": True,
+                                "text": {
+                                    "tag": "lark_md",
+                                    "content": (
+                                        "**ROI表现**\n"
+                                        f"{current_roi}（基准 {baseline_roi}）\n"
+                                        f"变化 {roi_change}"
+                                    ),
+                                },
+                            },
+                            {
+                                "is_short": True,
+                                "text": {
+                                    "tag": "lark_md",
+                                    "content": (
+                                        "**消耗表现**\n"
+                                        f"¥{current_spend}（基准 ¥{baseline_spend}）\n"
+                                        f"变化 {spend_change}"
+                                    ),
+                                },
+                            },
+                            {
+                                "is_short": True,
+                                "text": {
+                                    "tag": "lark_md",
+                                    "content": (f"**ROI目标**\n{roi_target}\n差值 {target_gap}"),
+                                },
+                            },
+                            {
+                                "is_short": True,
+                                "text": {
+                                    "tag": "lark_md",
+                                    "content": f"**目标状态**\n**{target_status}**",
+                                },
+                            },
+                        ],
+                    },
+                    {
+                        "tag": "div",
+                        "text": {
+                            "tag": "lark_md",
+                            "content": "\n".join(
+                                [
+                                    f"**综合判断**  {item.primary_status_name}",
+                                    f"**{label}**  {contribution_hours}",
+                                    *([f"**建议**  {item.suggestion}"] if not rise else []),
+                                ]
+                            ),
+                        },
+                    },
+                    {"tag": "hr"},
+                ]
             )
-            block = [
-                f"**{rank}. {item.anchor_name}｜{item.room_name}**",
-                roi_line,
-                spend_line,
-                target_line,
-                status_line,
-            ]
-            if not rise:
-                block.append(f"建议：{item.suggestion}")
-            lines.extend(["\n".join(block), "---"])
         reached = sum(item.roi_target_reached is True for item in items)
         not_reached = sum(item.roi_target_reached is False for item in items)
         if rise:
-            lines.append(
-                f"本次上涨主播：{total_count} ｜ 展示：{len(items)} ｜ "
-                f"已达标：{reached} ｜ 未达标但上涨：{not_reached}"
+            summary = (
+                f"**本次汇总**\n上涨主播 {total_count}　｜　展示 {len(items)}　｜　"
+                f"已达标 {reached}　｜　未达标但上涨 {not_reached}"
             )
         else:
             inefficient = sum(item.primary_status == "efficiency_deterioration" for item in items)
-            lines.append(
-                f"本次下跌主播：{total_count} ｜ 展示：{len(items)} ｜ "
-                f"未达标：{not_reached} ｜ 放量降效：{inefficient}"
+            summary = (
+                f"**本次汇总**\n下跌主播 {total_count}　｜　展示 {len(items)}　｜　"
+                f"未达标 {not_reached}　｜　放量降效 {inefficient}"
             )
-        lines.append(
-            f"数据更新时间：{data_updated_at.isoformat() if data_updated_at else '暂无来源时间'}"
+        updated_at_label = data_updated_at.isoformat() if data_updated_at else "暂无来源时间"
+        elements.extend(
+            [
+                {"tag": "div", "text": {"tag": "lark_md", "content": summary}},
+                {
+                    "tag": "note",
+                    "elements": [
+                        {
+                            "tag": "plain_text",
+                            "content": f"数据更新时间：{updated_at_label}",
+                        }
+                    ],
+                },
+            ]
         )
-        return FeishuBotClient.build_card(
+        return FeishuBotClient.build_structured_card(
             title,
-            lines,
+            elements,
             {
                 "查看完整榜单": "/alerts",
                 "查看主播分析": "/anchors",

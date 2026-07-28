@@ -48,11 +48,26 @@ class FeishuBotClient:
         *,
         template: str = "red",
     ) -> dict[str, Any]:
-        elements: list[dict[str, Any]] = [
-            {"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}}
-        ]
+        return FeishuBotClient.build_structured_card(
+            title,
+            [{"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}}],
+            links,
+            template=template,
+        )
+
+    @staticmethod
+    def build_structured_card(
+        title: str,
+        elements: list[dict[str, Any]],
+        links: dict[str, str],
+        *,
+        template: str = "red",
+    ) -> dict[str, Any]:
+        """Build an interactive card while preserving semantic element boundaries."""
+
+        card_elements = list(elements)
         if links:
-            elements.append(
+            card_elements.append(
                 {
                     "tag": "action",
                     "actions": [
@@ -73,7 +88,7 @@ class FeishuBotClient:
                     "template": template,
                     "title": {"tag": "plain_text", "content": title},
                 },
-                "elements": elements,
+                "elements": card_elements,
             },
         }
 
