@@ -8,6 +8,11 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   build: {
+    // The public dashboard is frequently opened from older managed Macs.
+    // Keep vendor chunks executable on Safari instead of relying on Vite's
+    // moving default browser target.
+    target: ['es2019', 'safari13'],
+    cssTarget: 'safari13',
     chunkSizeWarningLimit: 650,
     rollupOptions: {
       output: {

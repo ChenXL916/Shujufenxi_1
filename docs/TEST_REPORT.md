@@ -618,3 +618,29 @@
 - `LiveOps-Realtime-Sync` 已恢复为 `Running`；首轮用户令牌同步完成，stderr 为空，读取四个实绩源 774、778、0、171 条和两个排班源 144、43 条，小时事实为 2,499 条，预警发送数为 0。
 - 数据质量边界：妆前乳保留 1 条、Mistine 水散粉保留 14 条源记录校验异常，继续隔离且不计入聚合；本阶段没有发送测试群消息。
 - Docker 边界：Windows 主机没有 Docker CLI，本次完成 Compose YAML、路径和安全策略的等价静态校验，未实启完整 Compose 栈。
+
+## 2026-07-28 阶段 45：跨电脑白屏与 WebKit 启动恢复
+
+### 结论
+
+- 通过。Safari/WebKit 及较慢网络环境不再显示无反馈的暖白色空白页：React 启动前立即显示加载状态，资源瞬时失败会自动重试一次，持续失败会提供重载和固定入口。
+- 本次问题属于前端首屏启动与临时隧道稳定性，不是账号、飞书授权、权限范围、数据库或实时同步数据异常。
+
+### 验证证据
+
+- 定向后端：`pytest tests/test_deployment_safety.py tests/test_frontend_hosting.py -q`，`12/12 passed`。
+- 定向浏览器：`public-boot-recovery.spec.ts`，`2/2 passed`；覆盖慢模块加载和入口模块失败两条恢复路径。
+- 公网 WebKit：先捕获加载壳，再出现登录页和非空 React 根节点；所有入口、样式与 JS 分包均返回 HTTP 200，`/health=200`、`/ready=200`。未登录 `/auth/me=401` 是预期认证探测，未造成致命启动错误。
+- 完整 `make.cmd check`：退出码 0。
+  - Ruff format/check、ESLint、mypy（64 个源文件）、TypeScript、Prettier 全部通过。
+  - 后端 `202/202 passed`，领域与服务覆盖率 `85.85%`；保留 10 条 Starlette/Alembic 兼容性弃用警告。
+  - 前端 `84/84 passed`；保留 1 条 Ant Design StickyScrollBar 测试环境 `act(...)` 提示，不影响断言、构建或浏览器运行。
+  - Vite 转换 5,571 个模块，生成 23 个 JS Chunk，全部不超过 650 KiB。
+  - Chromium E2E `13/13 passed`。
+- `make.cmd verify-production`：退出码 0；7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径全部有效。
+
+### 生产边界
+
+- 当前固定分享入口为 `https://chenxl916.github.io/Shujufenxi_1/`；固定入口会解析当前运行中的 Quick Tunnel，外部人员不应直接保存或分享临时 `*.trycloudflare.com` 地址。
+- Quick Tunnel 本身无生产级 SLA。首屏保护解决了“静默白屏”并为瞬时断连提供恢复，但主机断电、Windows 用户未登录或隧道持续离线时仍无法提供 24×7 服务。
+- 本阶段没有改写正式数据、账号、角色、直播间权限、飞书配置或预警规则，也没有发送真实群消息。

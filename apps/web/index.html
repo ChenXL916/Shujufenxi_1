@@ -6,9 +6,182 @@
     <meta name="theme-color" content="#f7f6f2" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>多直播间小时数据驾驶舱</title>
+    <style>
+      .boot-fallback[hidden] {
+        display: none;
+      }
+      .boot-fallback {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 16% 10%, rgb(239 117 78 / 12%), transparent 30rem), #f7f3ed;
+        color: #171614;
+        font-family:
+          Inter,
+          'PingFang SC',
+          'Microsoft YaHei',
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      .boot-fallback__card {
+        width: min(100%, 390px);
+        padding: 30px;
+        border: 1px solid #e5ded4;
+        border-radius: 18px;
+        background: rgb(255 255 255 / 92%);
+        box-shadow: 0 14px 36px rgb(62 46 33 / 10%);
+        text-align: center;
+      }
+      .boot-fallback__mark {
+        width: 46px;
+        height: 46px;
+        margin: 0 auto 16px;
+        display: grid;
+        place-items: center;
+        border-radius: 14px;
+        background: #fbe8df;
+        color: #d85232;
+        font-weight: 800;
+      }
+      .boot-fallback h1 {
+        margin: 0 0 10px;
+        font-size: 20px;
+      }
+      .boot-fallback p {
+        margin: 0;
+        color: #6f675f;
+        font-size: 14px;
+        line-height: 1.7;
+      }
+      .boot-fallback__actions {
+        display: grid;
+        gap: 10px;
+        margin-top: 22px;
+      }
+      .boot-fallback__actions[hidden] {
+        display: none;
+      }
+      .boot-fallback button,
+      .boot-fallback a {
+        display: block;
+        padding: 11px 16px;
+        border-radius: 10px;
+        font: inherit;
+        font-weight: 650;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .boot-fallback button {
+        border: 0;
+        background: #171614;
+        color: #fff;
+      }
+      .boot-fallback a {
+        border: 1px solid #d8d0c7;
+        color: #403a34;
+      }
+    </style>
+    <script>
+      ;(function () {
+        var revealed = false
+        var retryKey = 'liveops-public-boot-retry'
+
+        function revealBootFallback() {
+          var root = document.getElementById('root')
+          if (revealed || (root && root.childNodes.length > 0)) return
+
+          try {
+            if (!window.sessionStorage.getItem(retryKey)) {
+              revealed = true
+              window.sessionStorage.setItem(retryKey, '1')
+              window.setTimeout(function () {
+                window.location.reload()
+              }, 1200)
+              return
+            }
+          } catch (error) {
+            // Private browsing can deny sessionStorage; the visible fallback still works.
+          }
+
+          var fallback = document.getElementById('boot-fallback')
+          if (!fallback) {
+            window.setTimeout(revealBootFallback, 0)
+            return
+          }
+          revealed = true
+          document.getElementById('boot-fallback-title').textContent = '页面连接没有完成'
+          document.getElementById('boot-fallback-message').textContent =
+            '网络刚才中断，或当前浏览器缓存了旧资源。请重新加载；若网关地址已更新，可返回固定入口重新连接。'
+          document.getElementById('boot-fallback-actions').hidden = false
+        }
+
+        function removeBootFallbackWhenMounted() {
+          var root = document.getElementById('root')
+          var fallback = document.getElementById('boot-fallback')
+          if (!root || !fallback) return
+
+          function removeIfMounted() {
+            if (!root.childNodes.length) return
+            fallback.remove()
+            try {
+              window.sessionStorage.removeItem(retryKey)
+            } catch (error) {
+              // Private browsing can deny sessionStorage.
+            }
+            return true
+          }
+
+          if (removeIfMounted()) return
+          var observer = new MutationObserver(function () {
+            if (!removeIfMounted()) return
+            observer.disconnect()
+          })
+          observer.observe(root, { childList: true })
+        }
+
+        window.addEventListener(
+          'error',
+          function (event) {
+            var target = event && event.target
+            if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
+              revealBootFallback()
+            }
+          },
+          true,
+        )
+        window.addEventListener('unhandledrejection', revealBootFallback)
+        document.addEventListener('DOMContentLoaded', removeBootFallbackWhenMounted)
+        window.setTimeout(revealBootFallback, 12000)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <section class="boot-fallback" id="boot-fallback">
+      <div class="boot-fallback__card">
+        <div class="boot-fallback__mark">LIVE</div>
+        <h1 id="boot-fallback-title">正在加载仪表盘</h1>
+        <p id="boot-fallback-message">正在加载页面资源和登录状态，请稍候。</p>
+        <div class="boot-fallback__actions" id="boot-fallback-actions" hidden>
+          <button type="button" onclick="window.location.reload()">重新加载页面</button>
+          <a href="https://chenxl916.github.io/Shujufenxi_1/">返回固定访问入口</a>
+        </div>
+      </div>
+    </section>
+    <noscript>
+      <section class="boot-fallback">
+        <div class="boot-fallback__card">
+          <div class="boot-fallback__mark">LIVE</div>
+          <h1>需要启用 JavaScript</h1>
+          <p>请在浏览器设置中允许此网站运行 JavaScript，然后重新加载页面。</p>
+        </div>
+      </section>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

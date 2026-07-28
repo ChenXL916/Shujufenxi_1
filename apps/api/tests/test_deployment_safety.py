@@ -160,3 +160,16 @@ def test_github_pages_loader_uses_the_validated_runtime_origin() -> None:
     assert "检测到网关地址正在切换" in loader
     assert "window.location.replace(target.href)" in loader
     assert 'cache: "no-store"' in loader
+
+
+def test_frontend_boot_fallback_supports_older_safari_and_public_recovery() -> None:
+    index = (ROOT / "apps" / "web" / "index.html").read_text(encoding="utf-8")
+    vite = (ROOT / "apps" / "web" / "vite.config.ts").read_text(encoding="utf-8")
+
+    assert "boot-fallback" in index
+    assert "liveops-public-boot-retry" in index
+    assert "window.location.reload()" in index
+    assert "https://chenxl916.github.io/Shujufenxi_1/" in index
+    assert "<noscript>" in index
+    assert "target: ['es2019', 'safari13']" in vite
+    assert "cssTarget: 'safari13'" in vite
