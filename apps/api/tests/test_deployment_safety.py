@@ -153,5 +153,10 @@ def test_github_pages_loader_uses_the_validated_runtime_origin() -> None:
     )
     assert 'origin.protocol !== "https:"' in loader
     assert '.endsWith(".trycloudflare.com")' in loader
+    assert 'new URL("/health", origin)' in loader
+    assert 'credentials: "omit"' in loader
+    assert "await assertOriginReady(origin)" in loader
+    assert "window.setTimeout(connect, retryDelayMs)" in loader
+    assert "检测到网关地址正在切换" in loader
     assert "window.location.replace(target.href)" in loader
     assert 'cache: "no-store"' in loader

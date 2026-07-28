@@ -567,3 +567,24 @@
 - 正式服务激活前生成 `backups/live_ops_20260728T041358Z.sqlite3`；源库与备份文件大小均为 83,562,496 字节，`PRAGMA integrity_check=ok`，并一致包含 `hourly_facts=2499`、`users=9`。
 - `LiveOps-Gateway` 已完成干净重启，`LiveOps-Realtime-Sync` 保持 `Running`；本地和当前公网源站 `/health`、`/ready` 均为 HTTP 200，运行模式为 `feishu`，数据库与 Redis 均为 `ok`。
 - 当前公网源站为 `https://velocity-practitioners-marc-looking.trycloudflare.com`；主播分析 JS 分包和全局 CSS 分包均为 HTTP 200，固定 GitHub Pages 入口同样返回 HTTP 200。
+
+## 2026-07-28 阶段 43：Cloudflare 1033 自动恢复
+
+### 结论
+
+- 故障根因是浏览器访问了已经下线的 Quick Tunnel，而不是账号、权限、数据库或飞书同步异常。
+- 当前网关已自动切换至 `https://jacket-selling-king-roommate.trycloudflare.com`；Chrome 实际页面恢复到预警中心，显示原开发者会话、数据正常状态和最新更新时间。
+- GitHub Pages 固定入口增加 `/health` 就绪探测与 5 秒自动重试：旧地址、1033、超时或运行地址 CDN 短暂缓存时不会直接跳转，待新地址可用后再进入驾驶舱。
+
+### 自动化测试
+
+- 定向命令：`pytest apps/api/tests/test_deployment_safety.py apps/api/tests/test_windows_runtime_scripts.py -q`，`13/13 passed`。
+- 首轮 `make.cmd check`：后端与新增入口保护通过，但既有用户权限页前端用例发生一次 5 秒超时；该用例独立复跑 `3/3 passed`。
+- 最终 `make.cmd check`：退出码 0；Ruff、mypy（64 个源文件）、ESLint、TypeScript、Prettier 全部通过；后端 `201/201`、覆盖率 `85.85%`，前端 `82/82`，Vite 23 个 JS Chunk 均不超过 650 KiB，Chromium E2E `8/8`。
+- `make.cmd verify-production`：退出码 0；7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径均有效。
+
+### 生产边界
+
+- 本机没有 Docker CLI，本次容器部分完成 Compose YAML、路径和安全策略的等价静态校验。
+- GitHub Pages 只获准对公开 `/health` 做无凭据探测；登录 Cookie、API 权限和业务数据仍由新网关同源校验。
+- 本阶段没有改写正式经营数据、账号、密码、角色、直播间权限、飞书配置或预警规则，也没有发送真实群消息。
