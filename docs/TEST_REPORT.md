@@ -573,7 +573,7 @@
 ### 结论
 
 - 故障根因是浏览器访问了已经下线的 Quick Tunnel，而不是账号、权限、数据库或飞书同步异常。
-- 当前网关已自动切换至 `https://jacket-selling-king-roommate.trycloudflare.com`；Chrome 实际页面恢复到预警中心，显示原开发者会话、数据正常状态和最新更新时间。
+- 当前网关最终切换至 `https://revised-combination-metric-vermont.trycloudflare.com`；`/ready` 返回 HTTP 200，数据库与 Redis 均为 `ok`。
 - GitHub Pages 固定入口增加 `/health` 就绪探测与 5 秒自动重试：旧地址、1033、超时或运行地址 CDN 短暂缓存时不会直接跳转，待新地址可用后再进入驾驶舱。
 
 ### 自动化测试
@@ -582,6 +582,7 @@
 - 首轮 `make.cmd check`：后端与新增入口保护通过，但既有用户权限页前端用例发生一次 5 秒超时；该用例独立复跑 `3/3 passed`。
 - 最终 `make.cmd check`：退出码 0；Ruff、mypy（64 个源文件）、ESLint、TypeScript、Prettier 全部通过；后端 `201/201`、覆盖率 `85.85%`，前端 `82/82`，Vite 23 个 JS Chunk 均不超过 650 KiB，Chromium E2E `8/8`。
 - `make.cmd verify-production`：退出码 0；7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径均有效。
+- 公网端到端验证：GitHub Pages 固定入口成功跳转最终新隧道，登录按钮可见，`/health=200`、`/ready=200`、未登录 `/auth/me=401`；Chrome 当前标签页也已恢复到最终新入口的登录界面。
 
 ### 生产边界
 

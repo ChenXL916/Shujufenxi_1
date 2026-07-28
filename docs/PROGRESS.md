@@ -669,7 +669,7 @@
 ### 故障与修复
 
 - [x] 复现并确认截图中的 Cloudflare 1033 来自已失效的旧 Quick Tunnel `velocity-practitioners-marc-looking.trycloudflare.com`；本地 `/ready` 始终为 HTTP 200，数据库、Redis、飞书模式与实时同步任务正常。
-- [x] 网关监督任务已在 12:36 自动建立新隧道并把 `jacket-selling-king-roommate.trycloudflare.com` 发布到 `liveops-runtime`；Chrome 已切换到新网关，恢复原登录会话、预警中心和实时数据。
+- [x] 网关监督任务先在 12:36 自动建立 `jacket-selling-king-roommate.trycloudflare.com` 并恢复实时页面；发布保护后于 12:55 干净重启为 `revised-combination-metric-vermont.trycloudflare.com`，当前 `/ready` 为 HTTP 200。
 - [x] 固定 GitHub Pages 入口新增网关就绪探测：读取运行地址后先请求 `/health`，只有返回 2xx 才跳转；如果读取到 CDN 缓存中的旧隧道或探测超时，入口停留在连接页并每 5 秒自动重试，不再直接把用户送到 Cloudflare 1033 页面。
 - [x] 正式网关环境已允许固定 GitHub Pages 来源执行无凭据健康探测；没有扩大账号权限、数据范围或跨站登录能力。
 
@@ -678,4 +678,5 @@
 - [x] 定向部署与 Windows 运行测试 `13/13 passed`。
 - [x] 首轮 `make.cmd check` 因既有 `AdminPage.test.tsx` 单条用例超过 5 秒失败；该用例独立复跑 `3/3 passed`，最终完整 `make.cmd check` 退出码 0：后端 `201/201`、覆盖率 `85.85%`，前端 `82/82`，Chromium E2E `8/8`。
 - [x] `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径均有效；本机没有 Docker CLI，容器部分为等价静态校验。
+- [x] 公网端到端脚本从带缓存破坏参数的 GitHub Pages 固定入口跳转到最终新隧道，确认登录页可见、`/health=200`、`/ready=200`、未登录 `/auth/me=401`；当前 Chrome 标签页也已切换到最终入口。
 - [x] 本阶段未修改正式 SQLite、账号、密码、角色、直播间范围、飞书凭据、同步规则或预警规则，也没有向真实飞书群发送消息。
