@@ -347,8 +347,11 @@ test('选择附加指标后显示真实当前/基准值并发送筛选参数', a
   renderSection()
   await screen.findByText('24小时ROI与消耗周期对比')
 
-  fireEvent.mouseDown(screen.getByLabelText('24小时指标'))
-  fireEvent.click(await screen.findByText('时段观看人数'))
+  const metricConfigurator = screen.getByRole('button', { name: '配置指标，已选 2 个' })
+  await waitFor(() => expect(metricConfigurator).toBeEnabled())
+  fireEvent.click(metricConfigurator)
+  fireEvent.click(await screen.findByRole('checkbox', { name: /时段观看人数/ }))
+  fireEvent.click(screen.getByRole('button', { name: '应用 3 个指标' }))
 
   await waitFor(() =>
     expect(apiMocks.getHourlyComparison).toHaveBeenLastCalledWith(

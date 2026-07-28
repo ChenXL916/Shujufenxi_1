@@ -1,12 +1,23 @@
 import { ReloadOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons'
 import { Button, Checkbox, Empty, Input, Modal, Tag } from 'antd'
 import { useMemo, useState } from 'react'
-import type { MetricOption } from '@/types/dashboard'
+
+interface ConfigurableMetric {
+  key: string
+  name: string
+  category: string
+  scope: string
+}
 
 interface Props {
-  metrics?: MetricOption[]
+  metrics?: ConfigurableMetric[]
   value: string[]
   defaultMetricKeys: string[]
+  lockedMetricKeys?: string[]
+  maxSelected?: number
+  description?: string
+  selectionHint?: string
+  className?: string
   onChange: (metricKeys: string[]) => void
 }
 
@@ -42,11 +53,33 @@ const GROUPS: ReadonlyArray<{
   },
 ]
 
-function groupFor(metric: MetricOption): string {
+function groupFor(metric: ConfigurableMetric): string {
   return GROUPS.find((group) => group.categories.has(metric.category))?.key ?? 'other'
 }
 
-export function MetricConfigurator({ metrics = [], value, defaultMetricKeys, onChange }: Props) {
+function metricScopeLabel(metric: ConfigurableMetric, locked: boolean): string {
+  const scope =
+    metric.scope === 'period'
+      ? '时段值'
+      : metric.scope === 'derived'
+        ? '计算指标'
+        : metric.scope === 'instant'
+          ? '即时值'
+          : '累计值'
+  return locked ? `${scope} · 固定` : scope
+}
+
+export function MetricConfigurator({
+  metrics = [],
+  value,
+  defaultMetricKeys,
+  lockedMetricKeys = [],
+  maxSelected,
+  description = '按业务环节选择当前页面要展示与分析的数据',
+  selectionHint = '勾选结果将在当前页面同步生效',
+  className,
+  onChange,
+}: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState<string[]>(value)
@@ -78,32 +111,64 @@ export function MetricConfigurator({ metrics = [], value, defaultMetricKeys, onC
     [filteredMetrics],
   )
   const otherMetrics = filteredMetrics.filter((metric) => groupFor(metric) === 'other')
+  const lockedKeys = useMemo(() => new Set(lockedMetricKeys), [lockedMetricKeys])
+  const normalizeSelection = (keys: string[]) => {
+    const available = new Set(metrics.map((metric) => metric.key))
+    const normalized = [...lockedMetricKeys, ...keys].filter(
+      (key, index, all) => available.has(key) && all.indexOf(key) === index,
+    )
+    return maxSelected ? normalized.slice(0, maxSelected) : normalized
+  }
 
   const show = () => {
-    setPending(value)
+    setPending(normalizeSelection(value))
     setQuery('')
     setOpen(true)
   }
   const toggleMetric = (key: string, checked: boolean) => {
-    setPending((current) =>
-      checked
-        ? metrics
-            .filter((metric) => current.includes(metric.key) || metric.key === key)
-            .map((metric) => metric.key)
-        : current.filter((item) => item !== key),
-    )
+    setPending((current) => {
+      if (!checked && lockedKeys.has(key)) return current
+      if (checked && maxSelected && current.length >= maxSelected) return current
+      return normalizeSelection(
+        checked ? [...current, key] : current.filter((item) => item !== key),
+      )
+    })
   }
   const restoreDefaults = () => {
-    const available = new Set(metrics.map((metric) => metric.key))
-    setPending(defaultMetricKeys.filter((key) => available.has(key)))
+    setPending(normalizeSelection(defaultMetricKeys))
+  }
+  const renderMetricOption = (metric: ConfigurableMetric) => {
+    const checked = pending.includes(metric.key)
+    const locked = lockedKeys.has(metric.key)
+    const disabled = locked || Boolean(!checked && maxSelected && pending.length >= maxSelected)
+    return (
+      <label
+        key={metric.key}
+        className={`metric-config-option${checked ? ' is-selected' : ''}${
+          disabled ? ' is-disabled' : ''
+        }${locked ? ' is-locked' : ''}`}
+      >
+        <Checkbox
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => toggleMetric(metric.key, event.target.checked)}
+        >
+          <span className="metric-config-option-copy">
+            <strong>{metric.name}</strong>
+            <small>{metricScopeLabel(metric, locked)}</small>
+          </span>
+        </Checkbox>
+      </label>
+    )
   }
 
   return (
     <>
       <Button
-        className="metric-config-trigger"
+        className={['metric-config-trigger', className].filter(Boolean).join(' ')}
         aria-label={`配置指标，已选 ${value.length} 个`}
         aria-expanded={open}
+        disabled={!metrics.length}
         onClick={show}
       >
         <span className="metric-config-trigger-title">
@@ -129,7 +194,7 @@ export function MetricConfigurator({ metrics = [], value, defaultMetricKeys, onC
             </span>
             <div>
               <strong>配置指标</strong>
-              <span>按业务环节选择主播分析和时段明细要展示的数据</span>
+              <span>{description}</span>
             </div>
           </div>
         }
@@ -145,7 +210,7 @@ export function MetricConfigurator({ metrics = [], value, defaultMetricKeys, onC
                 type="primary"
                 disabled={!pending.length}
                 onClick={() => {
-                  onChange(pending)
+                  onChange(normalizeSelection(pending))
                   setOpen(false)
                 }}
               >
@@ -158,7 +223,10 @@ export function MetricConfigurator({ metrics = [], value, defaultMetricKeys, onC
         <div className="metric-config-toolbar">
           <div>
             <strong>已选择 {pending.length} 个</strong>
-            <span>{pending.length ? '勾选结果将在两张表中同步生效' : '请至少选择 1 个指标'}</span>
+            <span>
+              {pending.length ? selectionHint : '请至少选择 1 个指标'}
+              {maxSelected ? ` · 最多选择 ${maxSelected} 个` : ''}
+            </span>
           </div>
           <Input
             allowClear
@@ -189,35 +257,7 @@ export function MetricConfigurator({ metrics = [], value, defaultMetricKeys, onC
                   </div>
                   <Tag>{group.metrics.length} 项</Tag>
                 </header>
-                <div className="metric-config-options">
-                  {group.metrics.map((metric) => {
-                    const checked = pending.includes(metric.key)
-                    return (
-                      <label
-                        key={metric.key}
-                        className={`metric-config-option${checked ? ' is-selected' : ''}`}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onChange={(event) => toggleMetric(metric.key, event.target.checked)}
-                        >
-                          <span className="metric-config-option-copy">
-                            <strong>{metric.name}</strong>
-                            <small>
-                              {metric.scope === 'period'
-                                ? '时段值'
-                                : metric.scope === 'derived'
-                                  ? '计算指标'
-                                  : metric.scope === 'instant'
-                                    ? '即时值'
-                                    : '累计值'}
-                            </small>
-                          </span>
-                        </Checkbox>
-                      </label>
-                    )
-                  })}
-                </div>
+                <div className="metric-config-options">{group.metrics.map(renderMetricOption)}</div>
               </section>
             ))}
             {otherMetrics.length ? (
@@ -229,27 +269,7 @@ export function MetricConfigurator({ metrics = [], value, defaultMetricKeys, onC
                   </div>
                   <Tag>{otherMetrics.length} 项</Tag>
                 </header>
-                <div className="metric-config-options">
-                  {otherMetrics.map((metric) => {
-                    const checked = pending.includes(metric.key)
-                    return (
-                      <label
-                        key={metric.key}
-                        className={`metric-config-option${checked ? ' is-selected' : ''}`}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onChange={(event) => toggleMetric(metric.key, event.target.checked)}
-                        >
-                          <span className="metric-config-option-copy">
-                            <strong>{metric.name}</strong>
-                            <small>{metric.category}</small>
-                          </span>
-                        </Checkbox>
-                      </label>
-                    )
-                  })}
-                </div>
+                <div className="metric-config-options">{otherMetrics.map(renderMetricOption)}</div>
               </section>
             ) : null}
           </div>

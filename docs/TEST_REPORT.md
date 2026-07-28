@@ -589,3 +589,32 @@
 - 本机没有 Docker CLI，本次容器部分完成 Compose YAML、路径和安全策略的等价静态校验。
 - GitHub Pages 只获准对公开 `/health` 做无凭据探测；登录 Cookie、API 权限和业务数据仍由新网关同源校验。
 - 本阶段没有改写正式经营数据、账号、密码、角色、直播间权限、飞书配置或预警规则，也没有发送真实群消息。
+
+## 2026-07-28 阶段 44：全站统一配置指标
+
+### 结论
+
+- 通过。小时趋势、数据对比、主播分析、场控分析、主播场控搭配及经营总览 24 小时对比均已使用同一“配置指标”弹窗，旧窄幅指标多选下拉已移除。
+- 配置器按业务环节分组并支持搜索、已选摘要、恢复默认、取消、应用、固定指标和最大数量；原日期、直播间、主播、场控、自然小时筛选以及 URL/API/权限行为未改变。
+- 经营总览固定保留时段整体支付 ROI 和时段消耗，总指标最多 4 项；移动端在 390 × 844 下使用单栏且无横向溢出。
+
+### 自动化测试
+
+- 定向单测：4 个前端文件，`19/19 passed`。
+- 定向 E2E：Chromium `3/3 passed`，覆盖五个页面统一入口、旧 `.metric-select` 清除、URL/API 联动、24 小时固定与上限约束、移动端更多筛选；页面错误与控制台错误均为 0。
+- 完整 `make.cmd check`：退出码 0。
+  - Ruff format/check、mypy（64 个源文件）、ESLint、TypeScript、Prettier 全部通过。
+  - 后端 `201/201 passed`，覆盖率 `85.85%`；保留 10 条 Starlette/Alembic 兼容性弃用警告。
+  - 前端 22 个测试文件、`84/84 passed`；保留 1 条 Ant Design StickyScrollBar 测试环境 `act(...)` 提示，不影响断言或浏览器运行。
+  - Vite 转换 5,570 个模块，生成 23 个 JS Chunk，全部不超过 650 KiB。
+  - Chromium `11/11 passed`，包含阶段 44 新增的 3 项完整业务回归。
+- `make.cmd verify-production`：退出码 0；7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径均有效。
+
+### 视觉与运行验收
+
+- 1440 × 900 小时趋势与经营总览截图、390 × 844 移动截图和同屏对照保存在 `artifacts/stage44/`；`design-qa.md` 最终为 `final result: passed`。
+- 门禁后公网复核捕获到旧孤儿 API/隧道进程造成的端口冲突与短命 Quick Tunnel；已清理旧进程、重新注册并启动 `LiveOps-Gateway`，没有修改账号、权限、飞书凭据或业务数据。
+- 当前 origin 为 `https://asin-finest-motivated-saturday.trycloudflare.com`；本地与公网 `/health`、`/ready` 均为 HTTP 200，GitHub 运行注册表指向同一 origin，固定入口 `https://chenxl916.github.io/Shujufenxi_1/` 返回 HTTP 200。
+- `LiveOps-Realtime-Sync` 已恢复为 `Running`；首轮用户令牌同步完成，stderr 为空，读取四个实绩源 774、778、0、171 条和两个排班源 144、43 条，小时事实为 2,499 条，预警发送数为 0。
+- 数据质量边界：妆前乳保留 1 条、Mistine 水散粉保留 14 条源记录校验异常，继续隔离且不计入聚合；本阶段没有发送测试群消息。
+- Docker 边界：Windows 主机没有 Docker CLI，本次完成 Compose YAML、路径和安全策略的等价静态校验，未实启完整 Compose 栈。

@@ -171,10 +171,6 @@ a,
 .filter-select.hours {
   min-width: 130px;
 }
-.metric-select {
-  min-width: 260px;
-  max-width: 380px;
-}
 .kpi-card {
   min-height: 166px;
   border-color: var(--color-border-subtle);
@@ -419,8 +415,7 @@ a,
   .filter-bar {
     position: static;
   }
-  .filter-select,
-  .metric-select {
+  .filter-select {
     min-width: calc(50vw - 28px);
     max-width: none;
   }
@@ -494,7 +489,7 @@ a,
   flex-wrap: wrap;
 }
 .hourly-room-select,
-.hourly-metric-select {
+.hourly-metric-config-trigger {
   min-width: 240px;
   max-width: 420px;
 }
@@ -704,7 +699,7 @@ a,
     align-items: flex-start;
   }
   .hourly-room-select,
-  .hourly-metric-select {
+  .hourly-metric-config-trigger {
     min-width: 100%;
   }
   .hourly-roi-spend-chart {
@@ -1298,9 +1293,8 @@ a:focus-visible,
 }
 
 .filter-select,
-.metric-select,
 .hourly-room-select,
-.hourly-metric-select {
+.hourly-metric-config-trigger {
   width: 220px;
   min-width: 180px;
   flex: 0 0 220px;
@@ -1848,9 +1842,8 @@ a:focus-visible,
   }
 
   .filter-select,
-  .metric-select,
   .hourly-room-select,
-  .hourly-metric-select,
+  .hourly-metric-config-trigger,
   .anchor-trend-status-filter,
   .anchor-trend-coverage-filter {
     width: 100%;
@@ -2165,6 +2158,15 @@ a:focus-visible,
 .metric-config-option.is-selected {
   background: color-mix(in srgb, var(--color-info-soft) 70%, #fff);
   box-shadow: inset 3px 0 0 var(--color-accent-blue);
+}
+
+.metric-config-option.is-disabled:not(.is-selected) {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.metric-config-option.is-locked {
+  cursor: default;
 }
 
 .metric-config-option .ant-checkbox-wrapper {
@@ -2945,18 +2947,22 @@ a:focus-visible,
   width: 100%;
 }
 
-.filter-scope-group .filter-select,
-.filter-scope-group .metric-select {
+.filter-scope-group .filter-select {
   width: 100%;
   min-width: 0;
   max-width: none;
   flex: none;
 }
 
-@media (min-width: 769px) {
-  .filter-scope-group .metric-select {
-    grid-column: span 2;
-  }
+.hourly-toolbar .hourly-metric-config-trigger {
+  width: min(100%, 320px);
+  min-width: 260px;
+  min-height: 38px;
+  flex: 1 1 280px;
+  justify-content: space-between;
+  overflow: hidden;
+  border-color: var(--color-border-default);
+  background: linear-gradient(180deg, #fff, var(--color-bg-soft));
 }
 
 .ant-select-multiple .ant-select-selector {

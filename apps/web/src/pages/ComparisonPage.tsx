@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Card, Segmented, Space, Table, Tag } from 'antd'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getComparisons, getFilterOptions } from '@/api/client'
 import { FilterBar } from '@/components/FilterBar'
 import { PageHeader } from '@/components/PageHeader'
@@ -13,16 +13,19 @@ export function ComparisonPage() {
   const { filters, update, reset } = useDashboardFilters()
   const [comparisonType, setComparisonType] = useState('previous_day')
   const options = useQuery({ queryKey: ['filter-options'], queryFn: getFilterOptions })
+  const defaultMetricKeys = useMemo(
+    () =>
+      options.data?.metrics
+        .filter((metric) => metric.default_visible)
+        .slice(0, 4)
+        .map((metric) => metric.key) ?? [],
+    [options.data?.metrics],
+  )
   useEffect(() => {
-    if (!filters.metricKeys.length && options.data) {
-      update({
-        metricKeys: options.data.metrics
-          .filter((metric) => metric.default_visible)
-          .slice(0, 4)
-          .map((metric) => metric.key),
-      })
+    if (!filters.metricKeys.length && defaultMetricKeys.length) {
+      update({ metricKeys: defaultMetricKeys })
     }
-  }, [filters.metricKeys.length, options.data, update])
+  }, [defaultMetricKeys, filters.metricKeys.length, update])
   const comparison = useQuery({
     queryKey: ['comparison', comparisonType, filters],
     queryFn: () => getComparisons(filters, comparisonType),
@@ -95,6 +98,7 @@ export function ComparisonPage() {
         update={update}
         reset={reset}
         showMetrics
+        metricDefaultKeys={defaultMetricKeys}
       />
       <Card className="data-card">
         {comparison.isLoading ? (

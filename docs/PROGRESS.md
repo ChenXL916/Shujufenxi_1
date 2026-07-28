@@ -680,3 +680,23 @@
 - [x] `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径均有效；本机没有 Docker CLI，容器部分为等价静态校验。
 - [x] 公网端到端脚本从带缓存破坏参数的 GitHub Pages 固定入口跳转到最终新隧道，确认登录页可见、`/health=200`、`/ready=200`、未登录 `/auth/me=401`；当前 Chrome 标签页也已切换到最终入口。
 - [x] 本阶段未修改正式 SQLite、账号、密码、角色、直播间范围、飞书凭据、同步规则或预警规则，也没有向真实飞书群发送消息。
+
+## 2026-07-28 阶段 44：全站指标配置统一
+
+### 实现
+
+- [x] 小时趋势、数据对比、主播分析、场控分析和主播场控搭配已全部移除旧指标多选下拉，统一使用按“流量人群、交易结果、转化效率、投放回报”分组的配置弹窗。
+- [x] 经营总览 24 小时对比的指标选择也已替换；时段整体支付 ROI 与时段消耗固定显示，最多选择 4 个指标。
+- [x] 统一组件支持搜索、已选摘要、恢复默认、锁定指标、最大数量、取消和应用；默认指标、URL 参数、API 查询、业务筛选与权限范围保持原有行为。
+- [x] 指标元数据加载前入口保持禁用，避免空弹窗；移动端在“更多筛选”中使用单栏布局和固定底部操作区。
+
+### 阶段测试
+
+- [x] TypeScript、ESLint 与生产构建通过；Vite 仍生成 23 个 JS Chunk，均未超过 650 KiB。
+- [x] 定向前端单测 4 个文件、`19/19 passed`，覆盖配置器、筛选条、主播分析和 24 小时对比；保留既有 Ant Design StickyScrollBar 测试环境 `act(...)` 提示。
+- [x] 新增 Chromium E2E `3/3 passed`：五个页面均无旧 `.metric-select`，配置应用后 URL/API 指标同步，24 小时核心指标锁定，390 × 844 移动端可完整操作；页面错误和控制台错误均为 0。
+- [x] 桌面端、经营总览与移动端截图已保存到 `artifacts/stage44/`；同屏对照后 `design-qa.md` 为 `final result: passed`。
+- [x] 完整 `make.cmd check` 退出码 0：Ruff、mypy（64 个源文件）、ESLint、TypeScript、Prettier 全部通过；后端 `201/201`、覆盖率 `85.85%`，前端 `84/84`，生产构建 23 个 JS Chunk 均不超过 650 KiB，Chromium E2E `11/11`。
+- [x] `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径有效；本机无 Docker CLI，容器部分为等价静态校验。
+- [x] 公网复核发现旧网关子进程残留导致新监督循环反复端口冲突并发布短命隧道；已使用项目卸载/注册脚本清理后重建单一网关实例。当前运行 origin 为 `https://asin-finest-motivated-saturday.trycloudflare.com`，本地及公网 `/health`、`/ready` 均为 HTTP 200，GitHub 运行状态与固定入口均已更新。
+- [x] `LiveOps-Gateway` 与 `LiveOps-Realtime-Sync` 均恢复为 `Running`；首轮真实同步完成且 stderr 为空，读取实绩 774、778、0、171 条和排班 144、43 条，小时事实 2,499 条，预警发送数为 0。已保留 1 条妆前乳和 14 条水散粉源数据校验异常，不计入聚合。

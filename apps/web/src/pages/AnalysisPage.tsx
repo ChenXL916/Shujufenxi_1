@@ -332,7 +332,6 @@ export function AnalysisPage({ dimension }: { dimension: 'anchors' | 'controls' 
         showMetrics
         showGrain={false}
         showPeriodPresets
-        metricConfigurator
         metricDefaultKeys={defaultMetricKeys}
       />
       <Card

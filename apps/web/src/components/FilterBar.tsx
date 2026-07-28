@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from 'react'
 import { MetricConfigurator } from '@/components/MetricConfigurator'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import type { DashboardFilters, DateMode, FilterOptions, Grain } from '@/types/dashboard'
-import { metricLabel } from '@/utils/format'
 import { restoreFocusAfterOverlayClose } from '@/utils/focus'
 
 interface Props {
@@ -16,7 +15,6 @@ interface Props {
   showMetrics?: boolean
   showGrain?: boolean
   showPeriodPresets?: boolean
-  metricConfigurator?: boolean
   metricDefaultKeys?: string[]
 }
 
@@ -31,7 +29,6 @@ export function FilterBar({
   showMetrics = false,
   showGrain = showMetrics,
   showPeriodPresets = false,
-  metricConfigurator = false,
   metricDefaultKeys = [],
 }: Props) {
   const mobile = useMediaQuery('(max-width: 768px)')
@@ -42,13 +39,15 @@ export function FilterBar({
     setDrawerOpen(false)
     restoreFocusAfterOverlayClose(trigger)
   }
+  const selectedMetricKeys =
+    showMetrics && !filters.metricKeys.length ? metricDefaultKeys : filters.metricKeys
   const selectedCount =
     filters.roomIds.length +
     filters.anchors.length +
     filters.anchorMembers.length +
     filters.controls.length +
     filters.hours.length +
-    filters.metricKeys.length +
+    selectedMetricKeys.length +
     (filters.startDate || filters.endDate ? 1 : 0)
 
   useEffect(() => {
@@ -237,29 +236,13 @@ export function FilterBar({
           onChange={(hours) => update({ hours })}
           className="filter-select hours"
         />
-        {showMetrics && metricConfigurator ? (
+        {showMetrics ? (
           <MetricConfigurator
             metrics={options?.metrics}
-            value={filters.metricKeys}
+            value={selectedMetricKeys}
             defaultMetricKeys={metricDefaultKeys}
+            description="按业务环节选择当前页面图表、表格和分析要展示的数据"
             onChange={(metricKeys) => update({ metricKeys })}
-          />
-        ) : showMetrics ? (
-          <Select
-            mode="multiple"
-            maxTagCount={2}
-            maxTagTextLength={12}
-            maxTagPlaceholder={hiddenTagCount}
-            placeholder="指标（最多建议 4 个）"
-            aria-label="指标"
-            value={filters.metricKeys}
-            options={options?.metrics.map((metric) => ({
-              label: metricLabel(metric),
-              value: metric.key,
-              group: metric.category,
-            }))}
-            onChange={(metricKeys) => update({ metricKeys })}
-            className="metric-select"
           />
         ) : null}
         {showMetrics && showGrain ? (

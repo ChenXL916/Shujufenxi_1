@@ -39,16 +39,19 @@ export function TimelinePage() {
   }
   const [mergeRooms, setMergeRooms] = useState(false)
   const options = useQuery({ queryKey: ['filter-options'], queryFn: getFilterOptions })
+  const defaultMetricKeys = useMemo(
+    () =>
+      options.data?.metrics
+        .filter((metric) => metric.default_visible)
+        .slice(0, 4)
+        .map((metric) => metric.key) ?? [],
+    [options.data?.metrics],
+  )
   useEffect(() => {
-    if (!filters.metricKeys.length && options.data) {
-      update({
-        metricKeys: options.data.metrics
-          .filter((metric) => metric.default_visible)
-          .slice(0, 4)
-          .map((metric) => metric.key),
-      })
+    if (!filters.metricKeys.length && defaultMetricKeys.length) {
+      update({ metricKeys: defaultMetricKeys })
     }
-  }, [filters.metricKeys.length, options.data, update])
+  }, [defaultMetricKeys, filters.metricKeys.length, update])
   const timeline = useQuery({
     queryKey: ['timeline', filters],
     queryFn: () => getTimeline(filters),
@@ -95,6 +98,7 @@ export function TimelinePage() {
         update={update}
         reset={reset}
         showMetrics
+        metricDefaultKeys={defaultMetricKeys}
       />
       {timeline.isLoading ? (
         <LoadingPanel />

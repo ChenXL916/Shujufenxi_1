@@ -30,6 +30,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { downloadHourlyComparison, getHourlyComparison } from '@/api/client'
+import { MetricConfigurator } from '@/components/MetricConfigurator'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { chartSemanticColors } from '@/theme/chartTheme'
 import type { DashboardFilters, FilterOptions } from '@/types/dashboard'
@@ -423,20 +424,15 @@ export function HourlyRoiSpendSection({
           options={options?.rooms.map((room) => ({ label: room.name, value: room.id }))}
           onChange={(roomIds) => onGlobalFiltersChange({ roomIds })}
         />
-        <Select
-          mode="multiple"
-          aria-label="24小时指标"
+        <MetricConfigurator
+          className="hourly-metric-config-trigger"
+          metrics={comparison.data?.metrics}
           value={metricIds}
-          maxCount={4}
-          maxTagCount={1}
-          maxTagPlaceholder={(omitted) => `+${omitted.length} 项`}
-          optionFilterProp="label"
-          className="hourly-metric-select"
-          options={comparison.data?.metrics.map((metric) => ({
-            label: metric.name,
-            value: metric.key,
-            disabled: CORE_METRIC_IDS.includes(metric.key as (typeof CORE_METRIC_IDS)[number]),
-          }))}
+          defaultMetricKeys={[...CORE_METRIC_IDS]}
+          lockedMetricKeys={[...CORE_METRIC_IDS]}
+          maxSelected={4}
+          description="选择 24 小时图表和对比明细要展示的指标"
+          selectionHint="ROI 与消耗固定显示，附加指标会同步到图表和明细"
           onChange={(values) => {
             const next = selectedMetricIds(values.join(','))
             setMetricIds(next)

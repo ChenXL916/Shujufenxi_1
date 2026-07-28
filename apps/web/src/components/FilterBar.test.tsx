@@ -111,6 +111,88 @@ test('shows the anchor member filter supplied by the API', () => {
   expect(screen.getByLabelText('主播成员')).toBeInTheDocument()
 })
 
+test('指标入口统一使用配置指标弹窗并应用选择结果', async () => {
+  const update = vi.fn()
+  const filters: DashboardFilters = {
+    dateMode: 'day',
+    roomIds: [],
+    anchors: [],
+    anchorMembers: [],
+    controls: [],
+    hours: [],
+    metricKeys: ['period_overall_amount'],
+    grain: 'hour',
+  }
+
+  render(
+    <FilterBar
+      filters={filters}
+      update={update}
+      reset={vi.fn()}
+      showMetrics
+      metricDefaultKeys={['period_overall_amount']}
+      options={{
+        min_date: '2026-07-01',
+        max_date: '2026-07-14',
+        months: ['2026-07'],
+        rooms: [],
+        anchors: [],
+        anchor_members: [],
+        controls: [],
+        hour_slots: [],
+        metrics: [
+          {
+            key: 'period_overall_amount',
+            name: '时段整体成交金额',
+            category: '金额',
+            unit: 'currency',
+            precision: 2,
+            scope: 'period',
+            aggregation: 'SUM',
+            numerator: null,
+            denominator: null,
+            direction: 'higher_better',
+            default_visible: true,
+            analysis_default: true,
+            supports_hourly_trend: true,
+            supports_kline: false,
+            supports_alerts: true,
+            is_cumulative: false,
+          },
+          {
+            key: 'period_buyers',
+            name: '时段成交人数',
+            category: '人数',
+            unit: 'count',
+            precision: 0,
+            scope: 'period',
+            aggregation: 'SUM',
+            numerator: null,
+            denominator: null,
+            direction: 'higher_better',
+            default_visible: false,
+            analysis_default: true,
+            supports_hourly_trend: true,
+            supports_kline: false,
+            supports_alerts: false,
+            is_cumulative: false,
+          },
+        ],
+        comparison_types: ['previous_day'],
+      }}
+    />,
+  )
+
+  expect(screen.queryByLabelText('指标')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '配置指标，已选 1 个' }))
+  fireEvent.click(await screen.findByRole('checkbox', { name: /时段成交人数/ }))
+  fireEvent.click(screen.getByRole('button', { name: '应用 2 个指标' }))
+
+  expect(update).toHaveBeenCalledWith({
+    metricKeys: ['period_overall_amount', 'period_buyers'],
+  })
+})
+
 test('移动筛选使用全屏Drawer且提供固定语义的重置和应用操作', async () => {
   const mediaQuery = vi.spyOn(window, 'matchMedia').mockImplementation(
     (query: string) =>
