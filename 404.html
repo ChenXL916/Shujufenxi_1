@@ -9,7 +9,12 @@
       :root {
         color: #171614;
         font-family:
-          Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+          Inter,
+          "PingFang SC",
+          "Microsoft YaHei",
+          system-ui,
+          -apple-system,
+          sans-serif;
         background: #f7f3ed;
       }
       * {
@@ -21,7 +26,11 @@
         display: grid;
         place-items: center;
         background:
-          radial-gradient(circle at 15% 8%, rgb(239 117 78 / 12%), transparent 28rem),
+          radial-gradient(
+            circle at 15% 8%,
+            rgb(239 117 78 / 12%),
+            transparent 28rem
+          ),
           #f7f3ed;
       }
       main {
@@ -100,21 +109,59 @@
       const manifestUrl =
         "https://raw.githubusercontent.com/ChenXL916/Shujufenxi_1/liveops-runtime/runtime/backend-origin.json";
       const repositoryPrefix = "/Shujufenxi_1";
+      const retryDelayMs = 5000;
+      const probeTimeoutMs = 5000;
       const status = document.querySelector("#status");
       const spinner = document.querySelector("#spinner");
       const retry = document.querySelector("#retry");
+      let retryTimer;
 
       function destinationPath() {
         const remainder = window.location.pathname.startsWith(repositoryPrefix)
           ? window.location.pathname.slice(repositoryPrefix.length)
           : "/";
-        if (!remainder || remainder === "/" || remainder === "/index.html" || remainder === "/404.html") {
+        if (
+          !remainder ||
+          remainder === "/" ||
+          remainder === "/index.html" ||
+          remainder === "/404.html"
+        ) {
           return "/";
         }
         return remainder.startsWith("/") ? remainder : `/${remainder}`;
       }
 
+      async function assertOriginReady(origin) {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(
+          () => controller.abort(),
+          probeTimeoutMs,
+        );
+        try {
+          const response = await fetch(new URL("/health", origin), {
+            cache: "no-store",
+            credentials: "omit",
+            signal: controller.signal,
+          });
+          if (!response.ok) {
+            throw new Error(`runtime origin returned ${response.status}`);
+          }
+        } finally {
+          window.clearTimeout(timeout);
+        }
+      }
+
+      function scheduleRetry() {
+        status.textContent =
+          "检测到网关地址正在切换，系统将在 5 秒后自动重试。";
+        spinner.style.display = "block";
+        retry.style.display = "block";
+        window.clearTimeout(retryTimer);
+        retryTimer = window.setTimeout(connect, retryDelayMs);
+      }
+
       async function connect() {
+        window.clearTimeout(retryTimer);
         spinner.style.display = "block";
         retry.style.display = "none";
         status.textContent = "正在查找当前可用的数据网关，请稍候。";
@@ -125,14 +172,15 @@
           if (!response.ok) {
             throw new Error(`runtime manifest returned ${response.status}`);
           }
-          const document = await response.json();
-          const origin = new URL(document.origin);
+          const manifest = await response.json();
+          const origin = new URL(manifest.origin);
           if (
             origin.protocol !== "https:" ||
             !origin.hostname.toLowerCase().endsWith(".trycloudflare.com")
           ) {
             throw new Error("runtime origin is not allowed");
           }
+          await assertOriginReady(origin);
           const target = new URL(
             `${destinationPath()}${window.location.search}${window.location.hash}`,
             origin,
@@ -140,13 +188,14 @@
           window.location.replace(target.href);
         } catch (error) {
           console.error(error);
-          status.textContent = "当前网关暂时不可用，请确认服务器电脑已登录并联网后重试。";
-          spinner.style.display = "none";
-          retry.style.display = "block";
+          scheduleRetry();
         }
       }
 
-      retry.addEventListener("click", connect);
+      retry.addEventListener("click", () => {
+        window.clearTimeout(retryTimer);
+        connect();
+      });
       connect();
     </script>
   </body>
