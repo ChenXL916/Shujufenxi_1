@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $serviceScript = Join-Path $root 'scripts\gateway_service.py'
 $apiDirectory = Join-Path $root 'apps\api'
+$shortcutUninstaller = Join-Path $PSScriptRoot 'uninstall-dashboard-launcher.ps1'
 $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($null -ne $task) {
     Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
@@ -21,6 +22,10 @@ $serviceProcesses = Get-CimInstance Win32_Process |
     }
 foreach ($process in $serviceProcesses) {
     Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+}
+
+if (Test-Path -LiteralPath $shortcutUninstaller) {
+    & $shortcutUninstaller | Out-Null
 }
 
 Write-Output "Removed scheduled task: $TaskName"

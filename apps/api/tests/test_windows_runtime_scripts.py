@@ -4,6 +4,8 @@ ROOT = Path(__file__).resolve().parents[3]
 WINDOWS_INFRA = ROOT / "infra" / "windows"
 SERVICE_SCRIPT = ROOT / "scripts" / "realtime_sync_service.py"
 GATEWAY_SCRIPT = ROOT / "scripts" / "gateway_service.py"
+LAUNCHER_INSTALLER = WINDOWS_INFRA / "install-dashboard-launcher.ps1"
+LAUNCHER_UNINSTALLER = WINDOWS_INFRA / "uninstall-dashboard-launcher.ps1"
 
 
 def test_realtime_sync_task_uses_local_env_and_singleton_guard() -> None:
@@ -52,6 +54,7 @@ def test_gateway_task_starts_api_tunnel_and_publishes_runtime_origin() -> None:
     assert "-AtLogOn" in register
     assert "-MultipleInstances IgnoreNew" in register
     assert "-RestartCount 99" in register
+    assert "install-dashboard-launcher.ps1" in register
     assert "gateway-service.lock" in service
     assert 'environment["APP_ENV_FILE"] = str(ENV_FILE)' in service
     assert '[wsl, "--exec", "/bin/sleep", "infinity"]' in service
@@ -72,4 +75,20 @@ def test_gateway_task_has_reversible_unregister_script() -> None:
     assert "Unregister-ScheduledTask" in unregister
     assert "gateway_service.py" in unregister
     assert "cloudflared.exe" in unregister
+    assert "uninstall-dashboard-launcher.ps1" in unregister
     assert "Stop-Process" in unregister
+
+
+def test_dashboard_launcher_uses_fixed_entry_on_desktop_and_at_logon() -> None:
+    installer = LAUNCHER_INSTALLER.read_text(encoding="utf-8")
+    uninstaller = LAUNCHER_UNINSTALLER.read_text(encoding="utf-8")
+
+    assert "https://chenxl916.github.io/Shujufenxi_1/" in installer
+    assert "trycloudflare.com" not in installer
+    assert "[InternetShortcut]" in installer
+    assert "[Environment+SpecialFolder]::Desktop" in installer
+    assert "[Environment+SpecialFolder]::Startup" in installer
+    assert "WriteAllLines" in installer
+    assert "[Environment+SpecialFolder]::Desktop" in uninstaller
+    assert "[Environment+SpecialFolder]::Startup" in uninstaller
+    assert "Remove-Item" in uninstaller

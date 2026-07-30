@@ -34,6 +34,12 @@ Start-ScheduledTask -TaskName LiveOps-Gateway
 
 `scripts/gateway_service.py` 从本机忽略提交的 `.env.tunnel` 读取生产配置，先用轻量保活进程唤醒 WSL 内 Docker/Redis，等待本机 `/ready` 后再启动隧道。FastAPI 在全部 API/认证路由之后同源提供 `apps/web/dist`，包括 React SPA 回退。Quick Tunnel 地址变化后，只把公开 origin 写入 GitHub 的 `liveops-runtime` 运行分支；GitHub Pages 固定入口读取该状态并跳转到当前 HTTPS 网关，所以密码登录、Cookie、实时数据和 API 保持同源。任务或任一子进程异常退出后每分钟重建服务周期，文件锁和计划任务设置会阻止重复实例。
 
+注册网关任务时还会安装两个同名的“直播运营驾驶舱”固定入口：一个位于桌面，另一个位于当前用户的 Windows“启动”目录。用户重新启动电脑并登录 Windows 后，浏览器会自动打开 GitHub Pages 固定入口；该入口会等待新网关健康并跳转，不依赖上次开机生成的 `*.trycloudflare.com` 地址。浏览器被关闭后，可随时双击桌面入口重新进入。也可单独安装：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\infra\windows\install-dashboard-launcher.ps1
+```
+
 运行前提：
 
 - `cloudflared.exe` 安装在标准目录；
@@ -46,6 +52,8 @@ Start-ScheduledTask -TaskName LiveOps-Gateway
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\infra\windows\unregister-gateway-task.ps1
 ```
+
+撤销网关任务会同时移除桌面和启动目录中的固定入口；也可单独执行 `uninstall-dashboard-launcher.ps1`。
 
 该方案能自动恢复临时隧道并保持 GitHub Pages 用户入口不变，但电脑断电、停留在 Windows 登录界面或 GitHub/Cloudflare 公网不可达期间仍无法提供服务。当前 Netlify 站点因账户构建额度耗尽仍停留在旧代理产物，不作为可用入口。真正的无人值守 24×7 可用性仍需把后端迁到云服务器，或提供 Cloudflare 账号与自有域名配置命名隧道。
 

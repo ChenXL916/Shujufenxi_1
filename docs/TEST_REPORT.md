@@ -644,3 +644,30 @@
 - 当前固定分享入口为 `https://chenxl916.github.io/Shujufenxi_1/`；固定入口会解析当前运行中的 Quick Tunnel，外部人员不应直接保存或分享临时 `*.trycloudflare.com` 地址。
 - Quick Tunnel 本身无生产级 SLA。首屏保护解决了“静默白屏”并为瞬时断连提供恢复，但主机断电、Windows 用户未登录或隧道持续离线时仍无法提供 24×7 服务。
 - 本阶段没有改写正式数据、账号、角色、直播间权限、飞书配置或预警规则，也没有发送真实群消息。
+
+## 2026-07-30 阶段 46：重启后自启动与固定入口
+
+### 结论
+
+- 通过。本次电脑重启后，网关和实时同步任务已在 09:35:31 随 Windows 登录自动启动；打不开的直接原因是浏览器仍停留在上次开机的临时 Quick Tunnel，而不是自动启动失败。
+- 已安装桌面和 Windows“启动”目录双入口。以后登录 Windows 后浏览器会自动打开固定地址；关闭后可双击桌面“直播运营驾驶舱”，无需记忆隧道地址或人工执行启动命令。
+
+### 验证证据
+
+- 任务状态：`LiveOps-Gateway=Running`、`LiveOps-Realtime-Sync=Running`，触发类型均为 `At logon`，本地 `/ready=200`，`mode=feishu`、`database=ok`、`redis=ok`。
+- 新隧道：`https://nancy-triangle-approximate-maybe.trycloudflare.com`；固定入口 `https://chenxl916.github.io/Shujufenxi_1/` 已解析并跳转该地址。
+- 快捷方式：桌面与 `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` 中的 `直播运营驾驶舱.url` 均存在，只包含固定 HTTPS 入口、系统图标定义，不包含任何密钥。
+- Windows PowerShell 5 真实执行安装成功并模拟启动桌面入口；独立卸载脚本与网关撤销脚本提供可逆清理。
+- 定向测试：Windows 运行脚本与部署安全 `15/15 passed`；Ruff format/check 通过。
+- 完整 `make.cmd check`：退出码 0。
+  - 后端 `203/203 passed`，领域与服务覆盖率 `85.85%`；保留 10 条 Starlette/Alembic 兼容性弃用警告。
+  - 前端 `84/84 passed`；保留 1 条 Ant Design StickyScrollBar 测试环境 `act(...)` 提示，不影响断言、构建或浏览器运行。
+  - Vite 转换 5,571 个模块，23 个 JS Chunk 全部不超过 650 KiB。
+  - Chromium E2E `13/13 passed`。
+- `make.cmd verify-production`：退出码 0；7 个服务、33 张表、迁移、强密钥、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径全部有效。
+
+### 生产边界
+
+- 自动启动依赖当前用户登录 Windows；为避免保存 Windows 密码及复制 GitHub CLI 凭据，不在登录界面前使用 SYSTEM 身份启动。
+- Quick Tunnel 仍依赖本机电源和公网。需要电脑未登录时也持续对外服务，必须迁移云服务器或改用 Cloudflare 命名隧道。
+- 本阶段没有修改正式经营数据、账号、角色、直播间权限、飞书配置或预警规则，也没有发送真实群消息。

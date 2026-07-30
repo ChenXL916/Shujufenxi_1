@@ -724,3 +724,27 @@
 - [x] 当前本地与公网服务均返回 HTTP 200，固定入口为 `https://chenxl916.github.io/Shujufenxi_1/`；外部用户应分享该固定入口，不应收藏会变化的 `*.trycloudflare.com` 临时地址。
 - [x] 本阶段没有修改正式经营数据、账号、密码、角色、直播间权限、飞书凭据、同步规则或预警规则，也没有发送真实飞书群消息。
 - [ ] Quick Tunnel 不提供生产级可用性承诺；当前保护可消除静默白屏并自动恢复多数瞬时故障，但电脑断电、Windows 用户未登录或隧道持续不可用时，仍需固定域名隧道或云服务器才能保证 24×7 服务。
+
+## 2026-07-30 阶段 46：重启后固定入口自动打开
+
+### 实现与运行验证
+
+- [x] 核对本次真实重启后的任务证据：`LiveOps-Gateway` 与 `LiveOps-Realtime-Sync` 均在 2026-07-30 09:35:31 由“登录时”触发并保持 `Running`，本地 `/ready` 返回 HTTP 200，数据库与 Redis 均为 `ok`。
+- [x] 确认截图中的 `asin-finest-motivated-saturday.trycloudflare.com` 是上次开机的临时地址；本次开机已自动生成 `nancy-triangle-approximate-maybe.trycloudflare.com`，固定 GitHub Pages 入口已自动解析新地址。
+- [x] 新增可重复安装的 Windows 固定入口脚本，在桌面及当前用户“启动”目录创建“直播运营驾驶舱.url”，两者只保存 `https://chenxl916.github.io/Shujufenxi_1/`，不保存临时隧道、凭据或业务数据。
+- [x] Windows 用户登录后会自动打开固定入口；固定入口先等待当前网关健康，再跳转到新隧道。浏览器关闭后可双击桌面入口，不需要重新运行命令或请求人工启动。
+- [x] 网关任务注册脚本会自动安装两个入口，撤销脚本会同步清理；独立安装与卸载脚本保持可逆。
+- [x] 已在 Windows PowerShell 5 中真实执行安装脚本，修复无 BOM 脚本内中文默认名称的编码兼容问题后，桌面和启动目录文件均成功生成且内容核对正确；随后实际启动桌面入口。
+- [x] 公网端到端验证通过：固定入口跳转至本次开机的新隧道，登录页可见，`/health=200`、`/ready=200`、未登录 `/auth/me=401`。
+
+### 阶段测试
+
+- [x] 定向 Windows 运行与部署安全测试 `15/15 passed`，Ruff format/check 通过。
+- [x] 最终 `make.cmd check` 退出码 0：Ruff、ESLint、mypy（64 个源文件）、TypeScript、Prettier 全部通过；后端 `203/203 passed`、覆盖率 `85.85%`，前端 `84/84 passed`，Vite 生成 23 个不超过 650 KiB 的 JS Chunk，Chromium E2E `13/13 passed`。
+- [x] 最终 `make.cmd verify-production` 退出码 0：7 个服务、33 张表、迁移、强密钥策略、关闭开发旁路、生产无 fixture 写入和 Docker 构建路径均有效；本机没有 Docker CLI，容器部分为等价静态校验。
+- [x] 本阶段没有修改正式 SQLite、账号、角色、直播间权限、飞书配置、同步口径或预警规则，也没有发送真实群消息。
+
+### 边界
+
+- [ ] 自动恢复从当前 Windows 用户完成登录后开始；出于不保存 Windows 密码、不复制用户 GitHub 凭据的安全要求，停留在 Windows 登录界面时不会运行。
+- [ ] Quick Tunnel 仍无生产 SLA。固定入口解决了“记住旧临时地址”和“每次人工打开”的问题，但电脑断电或公网持续不可达时仍需云服务器或命名隧道才能实现 24×7。

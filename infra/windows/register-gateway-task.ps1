@@ -7,10 +7,11 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $python = Join-Path $root 'apps\api\.venv\Scripts\python.exe'
 $serviceScript = Join-Path $root 'scripts\gateway_service.py'
+$shortcutInstaller = Join-Path $PSScriptRoot 'install-dashboard-launcher.ps1'
 $cloudflared = 'C:\Program Files (x86)\cloudflared\cloudflared.exe'
 $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 
-foreach ($requiredPath in @($python, $serviceScript, $cloudflared)) {
+foreach ($requiredPath in @($python, $serviceScript, $shortcutInstaller, $cloudflared)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Missing gateway runtime file: $requiredPath"
     }
@@ -45,6 +46,8 @@ Register-ScheduledTask `
     -Settings $settings `
     -Description 'Live Ops FastAPI and Cloudflare gateway with automatic runtime-origin publication.' `
     -Force | Out-Null
+
+& $shortcutInstaller | Out-Null
 
 Get-ScheduledTask -TaskName $TaskName |
     Select-Object TaskName, State, Author, Description
