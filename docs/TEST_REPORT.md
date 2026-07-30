@@ -21,6 +21,7 @@
   - Vite 构建 5,571 个模块，23 个 JavaScript Chunk 全部不超过 650 KiB。
   - Chromium E2E `13/13 passed`。
 - Sites 本地生产形态浏览器检查：`/`、`/anchors`、`/health` 均为 HTTP 200；深链接登录表单可见，正文非空，无 Vite 错误层，浏览器错误和控制台错误均为 0。
+- Sites 所有者私有生产版本已部署到 `https://jishi-live-ops-dashboard.chenclya.chatgpt.site`。使用一次性所有者探测头验证 `/`、`/anchors`、`/health`、`/ready` 为 HTTP 200，未登录 `/auth/me` 为预期 HTTP 401；探测令牌未写入文件、日志或 Git。
 - `make.cmd verify-production`：退出码 0；7 服务、33 表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径均有效。
 - 本机没有 Docker CLI，Compose 仅完成 YAML、路径和安全策略的等价静态校验；真实容器、PostgreSQL、Redis、Celery 和 Caddy 运行验收将在目标云服务器执行。
 

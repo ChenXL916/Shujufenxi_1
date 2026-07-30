@@ -18,6 +18,8 @@
 
 网页仍然只访问一个 Sites HTTPS 地址。网页登录 Cookie、飞书 OAuth state、CSRF、权限、导出和详情跳转保持同源；数据库、Redis 和飞书密钥不进入前端或 Sites 构建产物。
 
+当前所有者私有 Sites 并行入口为 `https://jishi-live-ops-dashboard.chenclya.chatgpt.site`。它暂时代理现有正式后端用于并行验证；目标云 API、PostgreSQL 和 Redis 验收通过前，不替换现有共享入口。
+
 ## 云服务器最低准备
 
 - Linux x86_64 云服务器，建议至少 2 vCPU、4 GB 内存、80 GB SSD；安装 Docker Engine 与 Compose Plugin。
