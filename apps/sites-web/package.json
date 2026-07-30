@@ -1,0 +1,43 @@
+{
+  "name": "live-ops-sites-web",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vinext dev",
+    "stage:dashboard": "node scripts/stage-dashboard.mjs",
+    "build:sites": "npm run stage:dashboard && vinext build",
+    "build": "npm --prefix ../web run build && npm run build:sites",
+    "start": "vinext start",
+    "test:unit": "node --test tests/gateway.test.mjs tests/stage-dashboard.test.mjs",
+    "test": "npm run test:unit && npm run build:sites && node --test tests/rendered-html.test.mjs",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern public",
+    "typecheck": "tsc --noEmit --pretty false",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "next": "16.2.6",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.37.1",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-rsc": "0.5.26",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.6",
+    "prettier": "3.6.2",
+    "react-server-dom-webpack": "19.2.6",
+    "typescript": "5.9.3",
+    "vinext": "0.0.50",
+    "vite": "8.0.13",
+    "wrangler": "4.92.0"
+  },
+  "type": "module"
+}

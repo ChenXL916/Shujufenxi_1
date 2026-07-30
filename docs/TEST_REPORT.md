@@ -1,6 +1,28 @@
 # 测试报告
 
-测试日期：2026-07-15（Asia/Shanghai）
+测试日期：2026-07-30（Asia/Shanghai）
+
+## 阶段 47：Sites 与云端后端/数据库迁移
+
+### 当前结论
+
+- Sites 前端托管壳、同源 Worker 网关、SPA 深链接、云端生产编排、在线 SQLite 快照、SQLite→PostgreSQL 迁移复核、备份恢复和切换/回滚工具均已完成。
+- 当前 Windows 正式环境、GitHub Pages 固定入口和 Quick Tunnel 保持运行，本阶段未修改正式经营数据、账号、角色、直播间权限、飞书凭据或预警规则，也未发送真实群消息。
+- 正式 SQLite 在线快照为 89,427,968 bytes，`integrity_check=ok`，SHA-256 为 `fbebfd9035c90f945d45d954c81fe85d3b3574117fa92d056d373eeb4751e1f4`。快照目录被 Git 忽略，仅用于后续加密上传到云服务器。
+- 云服务器尚未提供，因此当前完成的是可执行迁移包和本地/静态生产验收；实际 PostgreSQL 导入、容器启动、DNS、飞书回调和云端端到端切换不能冒充已完成。
+
+### 自动化与浏览器验证
+
+- `make.cmd check`：退出码 0。
+  - Ruff format/check、mypy（64 个源文件）、ESLint、TypeScript、Prettier 全部通过。
+  - 后端 `209/209 passed`，领域与服务覆盖率 `85.85%`。
+  - 前端 `22` 个测试文件、`84/84 passed`；保留一条 Ant Design StickyScrollBar 测试环境 `act(...)` 提示，不影响断言、构建或浏览器运行。
+  - Sites 网关/资源暂存 `10/10 passed`，构建产物 `3/3 passed`。
+  - Vite 构建 5,571 个模块，23 个 JavaScript Chunk 全部不超过 650 KiB。
+  - Chromium E2E `13/13 passed`。
+- Sites 本地生产形态浏览器检查：`/`、`/anchors`、`/health` 均为 HTTP 200；深链接登录表单可见，正文非空，无 Vite 错误层，浏览器错误和控制台错误均为 0。
+- `make.cmd verify-production`：退出码 0；7 服务、33 表、迁移、强密钥策略、生产无 fixture 写入和 Docker 构建路径均有效。
+- 本机没有 Docker CLI，Compose 仅完成 YAML、路径和安全策略的等价静态校验；真实容器、PostgreSQL、Redis、Celery 和 Caddy 运行验收将在目标云服务器执行。
 
 ## 结论
 

@@ -173,3 +173,64 @@ def test_frontend_boot_fallback_supports_older_safari_and_public_recovery() -> N
     assert "<noscript>" in index
     assert "target: ['es2019', 'safari13']" in vite
     assert "cssTarget: 'safari13'" in vite
+
+
+def test_sites_gateway_build_preserves_same_origin_auth_and_spa_routes() -> None:
+    package = json.loads((ROOT / "apps" / "sites-web" / "package.json").read_text(encoding="utf-8"))
+    hosting = json.loads(
+        (ROOT / "apps" / "sites-web" / ".openai" / "hosting.json").read_text(encoding="utf-8")
+    )
+    gateway = (ROOT / "apps" / "sites-web" / "worker" / "gateway.mjs").read_text(encoding="utf-8")
+    vite = (ROOT / "apps" / "sites-web" / "vite.config.ts").read_text(encoding="utf-8")
+
+    assert hosting["project_id"].startswith("appgprj_")
+    assert hosting["d1"] is None
+    assert hosting["r2"] is None
+    assert "npm --prefix ../web run build" in package["scripts"]["build"]
+    assert "stage-dashboard.mjs" in package["scripts"]["stage:dashboard"]
+    assert "npm run stage:dashboard" in package["scripts"]["build:sites"]
+    for path in ("/api/", "/auth/", "/health", "/ready"):
+        assert path in gateway
+    assert "BACKEND_ORIGIN" in gateway
+    assert "BACKEND_GATEWAY_TOKEN" in gateway
+    assert '"single-page-application"' in vite
+    assert "run_worker_first: true" in vite
+    assert 'for (const fallbackPath of ["/index.html", "/"])' in gateway
+    assert "Set-Cookie" not in gateway
+    assert "live_ops_session" not in gateway
+
+
+def test_cloud_compose_keeps_data_services_private_and_runs_real_workers() -> None:
+    compose = yaml.safe_load((ROOT / "docker-compose.cloud.yml").read_text(encoding="utf-8"))
+    services = compose["services"]
+
+    assert set(services) == {
+        "postgres",
+        "redis",
+        "api",
+        "celery-worker",
+        "celery-beat",
+        "migrate-data",
+        "api-gateway",
+    }
+    assert "ports" not in services["postgres"]
+    assert "ports" not in services["redis"]
+    assert compose["networks"]["backend"]["internal"] is True
+    assert services["api-gateway"]["ports"] == ["80:80", "443:443"]
+    assert services["celery-worker"]["command"][0] == "celery"
+    assert services["celery-beat"]["command"][0] == "celery"
+    assert services["migrate-data"]["profiles"] == ["migration"]
+    migration_command = " ".join(services["migrate-data"]["command"])
+    assert "migrate_sqlite_to_postgres.py" in migration_command
+    assert "--manifest /migration/manifest.json" in migration_command
+    api_command = " ".join(services["api"]["command"])
+    assert "seed_demo" not in api_command
+    assert "import_excel_fixture" not in api_command
+
+
+def test_cloud_gateway_requires_sites_secret_for_non_health_routes() -> None:
+    caddy = (ROOT / "infra" / "caddy" / "Caddyfile").read_text(encoding="utf-8")
+
+    assert "@health path /health /ready" in caddy
+    assert "X-LiveOps-Gateway-Token {$SITES_GATEWAY_TOKEN}" in caddy
+    assert 'respond "Forbidden" 403' in caddy

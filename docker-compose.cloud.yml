@@ -1,0 +1,173 @@
+name: live-ops-cloud
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-api-environment: &api-environment
+  APP_ENV: production
+  DEV_AUTH_BYPASS: "false"
+  PROJECT_ROOT: /app
+
+x-api-service: &api-service
+  image: live-ops-api:${IMAGE_TAG:-cloud}
+  env_file: .env.cloud
+  environment:
+    <<: *api-environment
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    - backend
+  logging: *default-logging
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:?POSTGRES_USER is required} -d ${POSTGRES_DB:?POSTGRES_DB is required}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    stop_grace_period: 30s
+    networks:
+      - backend
+    logging: *default-logging
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    stop_grace_period: 30s
+    networks:
+      - backend
+    logging: *default-logging
+
+  api:
+    <<: *api-service
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    init: true
+    command:
+      [
+        "sh",
+        "-c",
+        "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    stop_grace_period: 30s
+    networks:
+      - backend
+      - gateway
+
+  celery-worker:
+    <<: *api-service
+    restart: unless-stopped
+    init: true
+    command:
+      ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=INFO"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    stop_grace_period: 60s
+
+  celery-beat:
+    <<: *api-service
+    restart: unless-stopped
+    init: true
+    command:
+      ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=INFO"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    stop_grace_period: 30s
+
+  migrate-data:
+    <<: *api-service
+    profiles: ["migration"]
+    user: "0:0"
+    command:
+      [
+        "python",
+        "scripts/migrate_sqlite_to_postgres.py",
+        "--source",
+        "/migration/source.sqlite3",
+        "--manifest",
+        "/migration/manifest.json",
+      ]
+    volumes:
+      - ${MIGRATION_DIR:?MIGRATION_DIR is required}:/migration
+    restart: "no"
+
+  api-gateway:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      CLOUD_API_DOMAIN: ${CLOUD_API_DOMAIN:?CLOUD_API_DOMAIN is required}
+      SITES_GATEWAY_TOKEN: ${SITES_GATEWAY_TOKEN:?SITES_GATEWAY_TOKEN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - gateway
+    logging: *default-logging
+
+networks:
+  backend:
+    internal: true
+  gateway:
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

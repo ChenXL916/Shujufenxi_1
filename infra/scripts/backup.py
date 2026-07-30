@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
+import sqlite3
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,6 +12,28 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKUP_DIR = Path(os.getenv("BACKUP_DIR", ROOT / "backups"))
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _backup_sqlite(source: Path, target: Path) -> str:
+    source_uri = f"file:{source.as_posix()}?mode=ro"
+    with (
+        sqlite3.connect(source_uri, uri=True, timeout=30) as source_connection,
+        sqlite3.connect(target, timeout=30) as target_connection,
+    ):
+        source_connection.backup(target_connection)
+        integrity = str(target_connection.execute("PRAGMA integrity_check").fetchone()[0])
+    if integrity != "ok":
+        target.unlink(missing_ok=True)
+        raise RuntimeError(f"SQLite 在线备份完整性检查失败：{integrity}")
+    return integrity
 
 
 def main() -> None:
@@ -23,7 +48,18 @@ def main() -> None:
         if not source.exists():
             raise RuntimeError(f"SQLite 数据库不存在：{source}")
         target = BACKUP_DIR / f"live_ops_{stamp}.sqlite3"
-        shutil.copy2(source, target)
+        integrity = _backup_sqlite(source, target)
+        manifest = {
+            "completed_at_utc": datetime.now(UTC).isoformat(),
+            "format": "sqlite3-online-backup",
+            "snapshot": target.name,
+            "sha256": _sha256(target),
+            "integrity_check": integrity,
+        }
+        target.with_suffix(".manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
     else:
         pg_dump = shutil.which("pg_dump")
         if not pg_dump:
@@ -37,7 +73,9 @@ def main() -> None:
             netloc=f"{parsed.username or ''}@{parsed.hostname or ''}:{parsed.port or 5432}"
         ).geturl()
         subprocess.run(  # noqa: S603
-            [pg_dump, "--format=custom", "--file", str(target), safe_url], env=env, check=True
+            [pg_dump, "--format=custom", "--file", str(target), safe_url],
+            env=env,
+            check=True,
         )
     print(f"备份完成：{target}")
 

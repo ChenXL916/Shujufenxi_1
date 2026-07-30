@@ -1,5 +1,27 @@
 # 多直播间小时数据驾驶舱执行计划
 
+## 阶段 47：Sites 前端与云端后端/数据库无损迁移
+
+### 1. 并行迁移与切换边界
+
+- 当前 Windows、GitHub Pages 固定入口和 Quick Tunnel 在新环境完成验收前继续运行，不提前停机、不修改正式账号、权限、飞书配置、同步规则或预警规则。
+- Sites 承载现有 Vite 单页应用，并通过同源 Worker 网关代理 `/api/*`、`/auth/*`、`/health` 和 `/ready`；网页账号 Cookie、飞书 OAuth state、CSRF、下载和 React Router 深链接保持同源。
+- 云服务器承载 FastAPI、PostgreSQL、Redis、Celery Worker/Beat；PostgreSQL 和 Redis 不直接暴露公网，只有 HTTPS API 源站可被 Sites 网关访问。
+- 先部署仅所有者可见的 Sites 版本并连接并行后端。只有云端数据核对、功能回归、后台任务和回滚演练全部通过后，才允许把共享入口切换到新站点。
+
+### 2. 数据、凭证与可回滚性
+
+- 从正式 SQLite 使用在线备份生成只读快照，执行 `PRAGMA integrity_check` 和 SHA-256；迁移脚本按依赖顺序写入 PostgreSQL，并核对每表行数与主键摘要。
+- `FEISHU_APP_SECRET`、机器人凭证、JWT、字段加密密钥、数据库密码仅进入云服务器或 Sites 密钥存储，不写入 Git、构建产物、日志、迁移清单或 `.openai/hosting.json`。
+- 保留原 SQLite 快照和迁移清单；切换窗口内旧环境转为只读/暂停写入，失败时恢复旧入口和旧后台任务，禁止对已迁移数据库执行破坏性自动回滚。
+
+### 3. 阶段测试与完成标准
+
+- Sites 网关单元测试覆盖静态资源、SPA 回退、API/认证代理、健康检查、环境变量缺失和上游错误；浏览器测试覆盖网页登录、长期会话、飞书登录入口、页面深链接、权限隔离、筛选、图表、详情和下载。
+- 云端验证覆盖 PostgreSQL 迁移、Redis 就绪、Celery Worker/Beat、真实飞书同步、手动同步、自动预警、群推送去重、备份与恢复；生产验证不发送额外测试群消息。
+- 每个子阶段运行相应测试并更新 `docs/PROGRESS.md`、`docs/TEST_REPORT.md`；最终运行 `make.cmd check` 和 `make.cmd verify-production`。
+- 完成标准：Sites 固定地址可跨电脑访问，云端 `/health` 与 `/ready` 正常，正式数据行数/摘要与迁移清单一致，全部角色的数据范围和现有功能通过，旧电脑关机后系统仍可持续运行。
+
 更新日期：2026-07-20（Asia/Shanghai）
 
 ## 已确认输入与约束

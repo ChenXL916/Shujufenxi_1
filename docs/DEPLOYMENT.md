@@ -1,5 +1,8 @@
 # 部署文档
 
+Sites 前端与云端 FastAPI/PostgreSQL 的无损迁移步骤见
+[`docs/CLOUD_MIGRATION.md`](CLOUD_MIGRATION.md)。旧 Windows/Quick Tunnel 环境在云端全功能验收前必须保持运行。
+
 ## 拓扑
 
 Compose 固定包含 7 个服务：PostgreSQL、Redis、API、Celery Worker、Celery Beat、Web、反向代理。只有反向代理暴露 `8080`；数据库和 Redis 不对公网开放。

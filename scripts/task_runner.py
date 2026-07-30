@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 API = ROOT / "apps" / "api"
 WEB = ROOT / "apps" / "web"
+SITES_WEB = ROOT / "apps" / "sites-web"
 
 
 def run(*args: str, cwd: Path = ROOT, env: dict[str, str] | None = None) -> None:
@@ -58,7 +59,11 @@ def task_seed() -> None:
 
 
 def task_sync_fixture() -> None:
-    run(sys.executable, str(ROOT / "scripts" / "import_excel_fixture.py"), env=python_env())
+    run(
+        sys.executable,
+        str(ROOT / "scripts" / "import_excel_fixture.py"),
+        env=python_env(),
+    )
 
 
 def task_sync_feishu() -> None:
@@ -66,8 +71,17 @@ def task_sync_feishu() -> None:
 
 
 def task_test_unit() -> None:
-    run(sys.executable, "-m", "pytest", "-m", "not integration", cwd=API, env=python_env())
+    run(
+        sys.executable,
+        "-m",
+        "pytest",
+        "-m",
+        "not integration",
+        cwd=API,
+        env=python_env(),
+    )
     run(npm(), "run", "test:unit", cwd=WEB)
+    run(npm(), "run", "test:unit", cwd=SITES_WEB)
 
 
 def task_test_integration() -> None:
@@ -81,6 +95,7 @@ def task_test_e2e() -> None:
 def task_test() -> None:
     run(sys.executable, "-m", "pytest", cwd=API, env=python_env())
     run(npm(), "run", "test:unit", cwd=WEB)
+    run(npm(), "run", "test:unit", cwd=SITES_WEB)
 
 
 def task_lint() -> None:
@@ -96,11 +111,13 @@ def task_lint() -> None:
         cwd=API,
     )
     run(npm(), "run", "lint", cwd=WEB)
+    run(npm(), "run", "lint", cwd=SITES_WEB)
 
 
 def task_typecheck() -> None:
     run(sys.executable, "-m", "mypy", "app", cwd=API)
     run(npm(), "run", "typecheck", cwd=WEB)
+    run(npm(), "run", "typecheck", cwd=SITES_WEB)
 
 
 def task_format() -> None:
@@ -117,6 +134,7 @@ def task_format() -> None:
     )
     task_lint()
     run(npm(), "run", "format", cwd=WEB)
+    run(npm(), "run", "format", cwd=SITES_WEB)
 
 
 def task_check() -> None:
@@ -146,12 +164,16 @@ def task_check() -> None:
     )
     run(npm(), "run", "format:check", cwd=WEB)
     run(npm(), "run", "test:unit", cwd=WEB)
+    run(npm(), "run", "format:check", cwd=SITES_WEB)
+    run(npm(), "run", "test:unit", cwd=SITES_WEB)
     task_build()
+    run("node", "--test", "tests/rendered-html.test.mjs", cwd=SITES_WEB)
     run(npm(), "run", "test:e2e", cwd=WEB)
 
 
 def task_build() -> None:
     run(npm(), "run", "build", cwd=WEB)
+    run(npm(), "run", "build:sites", cwd=SITES_WEB)
     run(sys.executable, "-m", "compileall", "-q", "app", cwd=API)
 
 

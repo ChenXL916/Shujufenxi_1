@@ -24,6 +24,14 @@ def main() -> None:
         "docker-compose.prod.yml",
         "apps/api/Dockerfile",
         "apps/web/Dockerfile",
+        "apps/sites-web/.openai/hosting.json",
+        "apps/sites-web/worker/gateway.mjs",
+        "apps/sites-web/scripts/stage-dashboard.mjs",
+        ".env.cloud.example",
+        "docker-compose.cloud.yml",
+        "infra/caddy/Caddyfile",
+        "infra/scripts/deploy_cloud_backend.sh",
+        "infra/scripts/verify_cloud_backend.py",
         "infra/nginx/default.conf",
         "infra/scripts/backup.py",
         "docs/DEPLOYMENT.md",
@@ -59,6 +67,47 @@ def main() -> None:
         raise RuntimeError("生产 API 启动命令必须先迁移再启动服务")
     if "seed_demo" in command_text or "import_excel_fixture" in command_text:
         raise RuntimeError("生产 API 启动命令禁止写入演示或夹具数据")
+
+    cloud_compose = yaml.safe_load((ROOT / "docker-compose.cloud.yml").read_text("utf-8"))
+    cloud_services = cloud_compose.get("services", {})
+    expected_cloud_services = {
+        "postgres",
+        "redis",
+        "api",
+        "celery-worker",
+        "celery-beat",
+        "migrate-data",
+        "api-gateway",
+    }
+    if set(cloud_services) != expected_cloud_services:
+        raise RuntimeError("云端 Compose 服务集合不完整")
+    if "ports" in cloud_services["postgres"] or "ports" in cloud_services["redis"]:
+        raise RuntimeError("云端 PostgreSQL/Redis 禁止暴露公网端口")
+    if not cloud_compose.get("networks", {}).get("backend", {}).get("internal"):
+        raise RuntimeError("云端数据库网络必须是 internal")
+    cloud_api_command = " ".join(cloud_services["api"].get("command", []))
+    if "seed_demo" in cloud_api_command or "import_excel_fixture" in cloud_api_command:
+        raise RuntimeError("云端 API 启动禁止写入演示或 fixture 数据")
+    migration_command = " ".join(cloud_services["migrate-data"].get("command", []))
+    if (
+        "migrate_sqlite_to_postgres.py" not in migration_command
+        or "--manifest" not in migration_command
+    ):
+        raise RuntimeError("云端迁移服务必须生成可核验迁移清单")
+
+    hosting = yaml.safe_load(
+        (ROOT / "apps" / "sites-web" / ".openai" / "hosting.json").read_text("utf-8")
+    )
+    if not str(hosting.get("project_id", "")).startswith("appgprj_"):
+        raise RuntimeError("Sites 项目 ID 未持久化")
+    gateway = (ROOT / "apps" / "sites-web" / "worker" / "gateway.mjs").read_text("utf-8")
+    for marker in ("BACKEND_ORIGIN", "BACKEND_GATEWAY_TOKEN"):
+        if marker not in gateway:
+            raise RuntimeError(f"Sites 同源网关缺少生产能力：{marker}")
+    vite = (ROOT / "apps" / "sites-web" / "vite.config.ts").read_text("utf-8")
+    for marker in ('"single-page-application"', "run_worker_first: true"):
+        if marker not in vite:
+            raise RuntimeError(f"Sites SPA 生产回退配置缺失：{marker}")
 
     sys.path.insert(0, str(ROOT / "apps" / "api"))
     from app.core.config import Settings

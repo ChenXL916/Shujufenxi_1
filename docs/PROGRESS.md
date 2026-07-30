@@ -1,5 +1,22 @@
 # 开发进度
 
+## 2026-07-30：阶段 47 — Sites 与云端后端/数据库迁移（进行中）
+
+- [x] 已确认现有正式环境继续运行，Git 工作树在迁移开始前无未提交改动，仓库尚未绑定 Sites 项目。
+- [x] 已确认后端现有 PostgreSQL、Redis、Celery、Alembic、生产 Compose 和 SQLite→PostgreSQL 校验迁移能力可复用。
+- [x] 已确定采用 Sites 同源 Worker 网关保留网页登录、飞书 OAuth、Cookie、CSRF、权限、导出和 SPA 深链接，避免跨域改造影响现有功能。
+- [x] 已从 Sites 官方 vinext 模板初始化独立托管壳，绑定 Sites 项目 `直播运营驾驶舱`；`.openai/hosting.json` 只保存非敏感项目 ID。
+- [x] 已实现 Vite 产物暂存、静态资源缓存、React Router 深链接回退和 `/api/*`、`/auth/*`、`/health`、`/ready` 同源代理；上游缺失/异常时明确返回 503/502，不回退到旧数据或 Mock。
+- [x] Sites 定向单元测试 `10/10 passed`、构建产物测试 `3/3 passed`，覆盖代理路径、HTTPS 源站校验、Cookie/查询/Set-Cookie 透传、SPA 回退、静态文件、防缓存错误和资源暂存。
+- [x] 已用真实浏览器验证 `/anchors` 直接刷新：HTTP 200、登录表单可见、正文非空、无 Vite 错误层且控制台无错误；Cloudflare 资源配置使用 Worker 优先和原生 SPA 回退。
+- [x] 已完成云端 PostgreSQL/Redis/API/Celery Worker/Celery Beat/Caddy 生产编排、私有数据网络、网关密钥、备份/迁移/生产复核脚本和切换/回滚手册。
+- [x] 已从仍在运行的正式 SQLite 使用在线备份 API 生成一致性快照 `backups/cloud-migration-20260730-104000/source.sqlite3`：89,427,968 bytes、`integrity_check=ok`、SHA-256 `fbebfd9035c90f945d45d954c81fe85d3b3574117fa92d056d373eeb4751e1f4`；快照被忽略且不会推送到 Git。
+- [ ] 在用户提供云服务器 IP/主机名、SSH 登录、API 子域名和 DNS 修改权限后，上传快照并完成 SQLite→PostgreSQL 实际迁移、行数/主键摘要核对、备份恢复演练和云端全功能验收。
+- [ ] 创建 Sites 项目并部署仅所有者可见的并行版本；云端全功能通过后再切换共享入口。
+- [x] `make.cmd check` 已通过：后端 `209/209`、覆盖率 `85.85%`，前端 `84/84`，Sites `10/10 + 3/3`，Chromium E2E `13/13`。
+- [x] `make.cmd verify-production` 已通过：7 服务、33 表、迁移、强密钥、无 fixture 写入及 Docker 构建路径有效；本机无 Docker CLI，因此容器运行验收保留到云服务器。
+- [ ] 保存并部署 Sites 所有者私有版本，更新测试报告并推送代码。
+
 ## 2026-07-20：阶段 18 — 五角色 RBAC 与直播间数据隔离（进行中）
 
 - 已审计现有 `User.role_name + UserRoomPermission + AccessScope` 权限链路，确认可增量扩展，无需新建第二套认证系统。
