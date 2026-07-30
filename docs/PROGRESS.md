@@ -12,7 +12,7 @@
 - [x] 已完成云端 PostgreSQL/Redis/API/Celery Worker/Celery Beat/Caddy 生产编排、私有数据网络、网关密钥、备份/迁移/生产复核脚本和切换/回滚手册。
 - [x] 已从仍在运行的正式 SQLite 使用在线备份 API 生成一致性快照 `backups/cloud-migration-20260730-104000/source.sqlite3`：89,427,968 bytes、`integrity_check=ok`、SHA-256 `fbebfd9035c90f945d45d954c81fe85d3b3574117fa92d056d373eeb4751e1f4`；快照被忽略且不会推送到 Git。
 - [ ] 在用户提供云服务器 IP/主机名、SSH 登录、API 子域名和 DNS 修改权限后，上传快照并完成 SQLite→PostgreSQL 实际迁移、行数/主键摘要核对、备份恢复演练和云端全功能验收。
-- [x] Sites 版本 1 已按提交 `19eb4883c84bb78569c70c8dfe6687d8acff277a` 保存并以仅所有者可见方式部署到 `https://jishi-live-ops-dashboard.chenclya.chatgpt.site`；它是并行入口，未替换现有共享地址。
+- [x] Sites 版本 2 已按提交 `534cd9799568cd6da445207e52bff90f3e386653` 保存并以仅所有者可见方式部署到 `https://jishi-live-ops-dashboard.chenclya.chatgpt.site`；它是并行入口，未替换现有共享地址。
 - [x] 私有生产探测通过：`/`、`/anchors`、`/health`、`/ready` 均为 HTTP 200，未登录 `/auth/me` 为预期 HTTP 401；当前临时连接仍指向原正式后端，云端全功能通过后再切换共享入口。
 - [x] `make.cmd check` 已通过：后端 `209/209`、覆盖率 `85.85%`，前端 `84/84`，Sites `10/10 + 3/3`，Chromium E2E `13/13`。
 - [x] `make.cmd verify-production` 已通过：7 服务、33 表、迁移、强密钥、无 fixture 写入及 Docker 构建路径有效；本机无 Docker CLI，因此容器运行验收保留到云服务器。
