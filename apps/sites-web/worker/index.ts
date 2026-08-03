@@ -14,8 +14,10 @@ interface Fetcher {
 interface Env {
   ASSETS: Fetcher;
   BACKEND_ORIGIN?: string;
+  BACKEND_ORIGIN_REGISTRY_URL?: string;
   BACKEND_GATEWAY_TOKEN?: string;
   BACKEND?: Fetcher;
+  BACKEND_ORIGIN_REGISTRY?: Fetcher;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {

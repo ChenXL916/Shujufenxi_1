@@ -3,6 +3,13 @@ const PROXY_PREFIXES = ["/api/", "/auth/"];
 const STATIC_ASSET_PATTERN =
   /\.(?:avif|css|csv|gif|ico|jpe?g|js|json|map|mp4|png|svg|txt|webmanifest|webp|woff2?)$/i;
 const UPSTREAM_TIMEOUT_MS = 65_000;
+const RUNTIME_ORIGIN_TIMEOUT_MS = 5_000;
+const RUNTIME_ORIGIN_CACHE_TTL_MS = 15_000;
+const QUICK_TUNNEL_SUFFIX = ".trycloudflare.com";
+const DEFAULT_QUICK_TUNNEL_REGISTRY_URL =
+  "https://raw.githubusercontent.com/ChenXL916/Shujufenxi_1/liveops-runtime/runtime/backend-origin.json";
+
+let runtimeOriginCache = null;
 
 function isProxyPath(pathname) {
   return (
@@ -51,6 +58,80 @@ function parseBackendOrigin(value) {
   }
 }
 
+function parseRegistryUrl(value) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.hash) {
+      return null;
+    }
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function isQuickTunnelOrigin(origin) {
+  return (
+    origin?.protocol === "https:" &&
+    origin.hostname.endsWith(QUICK_TUNNEL_SUFFIX) &&
+    origin.hostname.length > QUICK_TUNNEL_SUFFIX.length
+  );
+}
+
+function runtimeRegistryUrl(env, configuredOrigin) {
+  if (env.BACKEND_ORIGIN_REGISTRY_URL === "") return null;
+  if (env.BACKEND_ORIGIN_REGISTRY_URL !== undefined) {
+    return parseRegistryUrl(env.BACKEND_ORIGIN_REGISTRY_URL);
+  }
+  return isQuickTunnelOrigin(configuredOrigin)
+    ? new URL(DEFAULT_QUICK_TUNNEL_REGISTRY_URL)
+    : null;
+}
+
+async function fetchRuntimeOrigin(env, registryUrl) {
+  const now = Date.now();
+  if (
+    runtimeOriginCache?.registryUrl === registryUrl.href &&
+    runtimeOriginCache.expiresAt > now
+  ) {
+    return new URL(runtimeOriginCache.origin);
+  }
+
+  const registryFetcher = env.BACKEND_ORIGIN_REGISTRY?.fetch
+    ? env.BACKEND_ORIGIN_REGISTRY.fetch.bind(env.BACKEND_ORIGIN_REGISTRY)
+    : fetch;
+  try {
+    const response = await registryFetcher(registryUrl, {
+      headers: { Accept: "application/json" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(RUNTIME_ORIGIN_TIMEOUT_MS),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const origin = parseBackendOrigin(payload?.origin);
+    if (!isQuickTunnelOrigin(origin)) return null;
+    runtimeOriginCache = {
+      registryUrl: registryUrl.href,
+      origin: origin.href,
+      expiresAt: now + RUNTIME_ORIGIN_CACHE_TTL_MS,
+    };
+    return origin;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveBackendOrigin(env) {
+  const configuredOrigin = parseBackendOrigin(env.BACKEND_ORIGIN);
+  const registryUrl = runtimeRegistryUrl(env, configuredOrigin);
+  if (registryUrl) {
+    const runtimeOrigin = await fetchRuntimeOrigin(env, registryUrl);
+    if (runtimeOrigin) return runtimeOrigin;
+  }
+  return configuredOrigin;
+}
+
 function withStaticSecurityHeaders(response, pathname) {
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");
@@ -77,7 +158,7 @@ function withStaticSecurityHeaders(response, pathname) {
 }
 
 async function proxyToBackend(request, env) {
-  const origin = parseBackendOrigin(env.BACKEND_ORIGIN);
+  const origin = await resolveBackendOrigin(env);
   if (!origin) {
     return jsonError(
       503,
@@ -174,6 +255,13 @@ export function createGatewayHandler(nextHandler) {
 }
 
 export const gatewayInternals = {
+  DEFAULT_QUICK_TUNNEL_REGISTRY_URL,
   isProxyPath,
+  isQuickTunnelOrigin,
   parseBackendOrigin,
+  parseRegistryUrl,
+  resolveBackendOrigin,
+  resetRuntimeOriginCacheForTests() {
+    runtimeOriginCache = null;
+  },
 };

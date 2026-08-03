@@ -60,6 +60,75 @@ test("accepts public HTTPS origins and rejects unsafe origin shapes", () => {
     gatewayInternals.parseBackendOrigin("https://api.example.com/v1"),
     null,
   );
+  assert.equal(
+    gatewayInternals.parseRegistryUrl(
+      "https://raw.githubusercontent.com/example/runtime.json",
+    )?.href,
+    "https://raw.githubusercontent.com/example/runtime.json",
+  );
+  assert.equal(
+    gatewayInternals.parseRegistryUrl("http://example.com/runtime.json"),
+    null,
+  );
+});
+
+test("resolves the latest quick tunnel from the runtime registry", async () => {
+  gatewayInternals.resetRuntimeOriginCacheForTests();
+  let registryRequests = 0;
+  let upstreamUrl;
+  const response = await createHandler().fetch(
+    new Request("https://dashboard.example.com/ready"),
+    {
+      ASSETS: createAssets(),
+      BACKEND_ORIGIN: "https://expired-tunnel.trycloudflare.com",
+      BACKEND_ORIGIN_REGISTRY: {
+        async fetch() {
+          registryRequests += 1;
+          return Response.json({
+            origin: "https://current-tunnel.trycloudflare.com",
+          });
+        },
+      },
+      BACKEND: {
+        async fetch(url) {
+          upstreamUrl = String(url);
+          return Response.json({ status: "ready" });
+        },
+      },
+    },
+    context,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(registryRequests, 1);
+  assert.equal(upstreamUrl, "https://current-tunnel.trycloudflare.com/ready");
+});
+
+test("falls back to the configured quick tunnel when the registry is unavailable", async () => {
+  gatewayInternals.resetRuntimeOriginCacheForTests();
+  let upstreamUrl;
+  const response = await createHandler().fetch(
+    new Request("https://dashboard.example.com/health"),
+    {
+      ASSETS: createAssets(),
+      BACKEND_ORIGIN: "https://fallback-tunnel.trycloudflare.com",
+      BACKEND_ORIGIN_REGISTRY: {
+        async fetch() {
+          return new Response("unavailable", { status: 503 });
+        },
+      },
+      BACKEND: {
+        async fetch(url) {
+          upstreamUrl = String(url);
+          return Response.json({ status: "ok" });
+        },
+      },
+    },
+    context,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(upstreamUrl, "https://fallback-tunnel.trycloudflare.com/health");
 });
 
 test("serves hashed static assets with immutable caching", async () => {
