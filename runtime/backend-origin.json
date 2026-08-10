@@ -1,5 +1,5 @@
 {
-  "origin": "https://abu-amber-forecast-due.trycloudflare.com",
+  "origin": "https://api.trycloudflare.com",
   "kind": "cloudflare_quick_tunnel",
-  "updated_at": "2026-08-10T05:26:57+00:00"
+  "updated_at": "2026-08-10T05:28:17+00:00"
 }
