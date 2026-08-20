@@ -106,8 +106,7 @@
       <button type="button" id="retry">重新连接</button>
     </main>
     <script>
-      const manifestUrl =
-        "https://raw.githubusercontent.com/ChenXL916/Shujufenxi_1/liveops-runtime/runtime/backend-origin.json";
+      const dashboardOrigin = "https://jskzsjfx.netlify.app";
       const repositoryPrefix = "/Shujufenxi_1";
       const retryDelayMs = 5000;
       const probeTimeoutMs = 5000;
@@ -166,20 +165,7 @@
         retry.style.display = "none";
         status.textContent = "正在查找当前可用的数据网关，请稍候。";
         try {
-          const response = await fetch(`${manifestUrl}?t=${Date.now()}`, {
-            cache: "no-store",
-          });
-          if (!response.ok) {
-            throw new Error(`runtime manifest returned ${response.status}`);
-          }
-          const manifest = await response.json();
-          const origin = new URL(manifest.origin);
-          if (
-            origin.protocol !== "https:" ||
-            !origin.hostname.toLowerCase().endsWith(".trycloudflare.com")
-          ) {
-            throw new Error("runtime origin is not allowed");
-          }
+          const origin = new URL(dashboardOrigin);
           await assertOriginReady(origin);
           const target = new URL(
             `${destinationPath()}${window.location.search}${window.location.hash}`,
